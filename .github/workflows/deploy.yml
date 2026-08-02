@@ -25,12 +25,13 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: BE/package-lock.json
 
+      # `npm install`, not `npm ci` — package-lock.json is gitignored, and npm ci
+      # requires a lockfile. This also rules out setup-node's npm cache, which
+      # keys off a lockfile hash.
       - name: Install dependencies
         working-directory: BE
-        run: npm ci
+        run: npm install
 
       - name: Generate Prisma client
         working-directory: BE
@@ -65,12 +66,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: FE/package-lock.json
 
+      # See build-backend: no lockfile in the repo, so no `npm ci` and no cache.
       - name: Install dependencies
         working-directory: FE
-        run: npm ci
+        run: npm install
 
       - name: Run build
         working-directory: FE
@@ -89,15 +89,14 @@ jobs:
     needs: [build-backend, build-frontend]
     steps:
       # This job starts with an empty workspace — it only consumes artifacts, and
-      # the build jobs' checkouts do not carry over. Check out just the two
-      # backend manifests the remote `npm ci --omit=dev` needs. Must run before
-      # the artifact downloads, since checkout cleans the working directory.
-      - name: Checkout backend package manifests
+      # the build jobs' checkouts do not carry over. Check out the backend
+      # manifest the remote `npm install --omit=dev` needs. Must run before the
+      # artifact downloads, since checkout cleans the working directory.
+      # (package-lock.json is gitignored, so package.json is all there is.)
+      - name: Checkout backend package manifest
         uses: actions/checkout@v4
         with:
-          sparse-checkout: |
-            BE/package.json
-            BE/package-lock.json
+          sparse-checkout: BE/package.json
           sparse-checkout-cone-mode: false
 
       - name: Download backend artifact
@@ -138,9 +137,9 @@ jobs:
         run: |
           ssh deploy-target "mkdir -p ${{ env.REMOTE_ROOT }}/backend/dist ${{ env.REMOTE_ROOT }}/frontend/dist"
 
-      - name: Copy backend package manifests to server
+      - name: Copy backend package manifest to server
         run: |
-          scp BE/package.json BE/package-lock.json deploy-target:${{ env.REMOTE_ROOT }}/backend/
+          scp BE/package.json deploy-target:${{ env.REMOTE_ROOT }}/backend/
 
       # --delete so stale files from a previous build (renamed modules, old
       # content-hashed Vite chunks) are removed rather than accumulating.
@@ -159,15 +158,17 @@ jobs:
             docker compose up -d
 
             cd /srv/volthub/backend
-            npm ci --omit=dev --prefix /srv/volthub/backend
+            npm install --omit=dev --prefix /srv/volthub/backend
 
-            # `npm ci` wipes node_modules, which takes the generated client in
-            # node_modules/.prisma/client with it, and --omit=dev then drops the
+            # The install refreshes node_modules, dropping the generated client
+            # at node_modules/.prisma/client, and --omit=dev leaves out the
             # prisma CLI itself. So regenerate against the schema shipped in
-            # dist/, and pin the CLI to the exact version in the lockfile — a
-            # bare `npx prisma` would pull the latest major and generate a client
-            # mismatched with the installed @prisma/client.
-            PRISMA_VERSION="$(node -p "require('./package-lock.json').packages['node_modules/prisma'].version")"
+            # dist/, pinning the CLI to the exact @prisma/client version that
+            # just landed — a bare `npx prisma` would pull the latest major and
+            # generate a client mismatched with the installed runtime. Read from
+            # @prisma/client (a prod dep, so it survives --omit=dev) rather than
+            # a lockfile, since package-lock.json is gitignored.
+            PRISMA_VERSION="$(node -p "require('@prisma/client/package.json').version")"
             npx --yes "prisma@${PRISMA_VERSION}" generate --schema=dist/prisma/schema.prisma
             npx --yes "prisma@${PRISMA_VERSION}" migrate deploy --schema=dist/prisma/schema.prisma
 
