@@ -2,6 +2,9 @@
 node_modules/
 .pnp
 .pnp.js
+# Empty stub at the repo root (there is no root package.json). Leading slash
+# anchors this to the root only — BE/ and FE/ lockfiles stay tracked.
+/package-lock.json
 
 # Build outputs
 dist/
