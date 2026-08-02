@@ -1,0 +1,180 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+# Only one deploy at a time; a newer push waits rather than racing the older one
+# onto the server (never cancel-in-progress — a half-finished deploy is worse).
+concurrency:
+  group: deploy-main
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: "20"
+  REMOTE_ROOT: /srv/volthub
+
+jobs:
+  build-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: BE/package-lock.json
+
+      - name: Install dependencies
+        working-directory: BE
+        run: npm ci
+
+      - name: Generate Prisma client
+        working-directory: BE
+        run: npx prisma generate
+
+      - name: Run build
+        working-directory: BE
+        run: npm run build
+
+      # tsc has rootDir=./src, so prisma/ is not emitted into dist/. The deploy
+      # step runs `prisma migrate deploy --schema=dist/prisma/schema.prisma`, so
+      # stage the schema + migrations into the artifact for that path to resolve.
+      - name: Stage Prisma schema and migrations into dist
+        working-directory: BE
+        run: cp -r prisma dist/prisma
+
+      - name: Upload backend artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-dist
+          path: BE/dist/
+          if-no-files-found: error
+          retention-days: 7
+
+  build-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: FE/package-lock.json
+
+      - name: Install dependencies
+        working-directory: FE
+        run: npm ci
+
+      - name: Run build
+        working-directory: FE
+        run: npm run build
+
+      - name: Upload frontend artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: FE/dist/
+          if-no-files-found: error
+          retention-days: 7
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: [build-backend, build-frontend]
+    steps:
+      # This job starts with an empty workspace — it only consumes artifacts, and
+      # the build jobs' checkouts do not carry over. Check out just the two
+      # backend manifests the remote `npm ci --omit=dev` needs. Must run before
+      # the artifact downloads, since checkout cleans the working directory.
+      - name: Checkout backend package manifests
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            BE/package.json
+            BE/package-lock.json
+          sparse-checkout-cone-mode: false
+
+      - name: Download backend artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-dist
+          path: artifacts/backend-dist
+
+      - name: Download frontend artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: artifacts/frontend-dist
+
+      - name: Setup SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          chmod 644 ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<EOF
+          Host deploy-target
+            HostName $SSH_HOST
+            User ${{ secrets.SSH_USER }}
+            IdentityFile ~/.ssh/deploy_key
+            IdentitiesOnly yes
+            StrictHostKeyChecking yes
+            ServerAliveInterval 30
+          EOF
+          chmod 600 ~/.ssh/config
+
+      - name: Prepare remote directories
+        run: |
+          ssh deploy-target "mkdir -p ${{ env.REMOTE_ROOT }}/backend/dist ${{ env.REMOTE_ROOT }}/frontend/dist"
+
+      - name: Copy backend package manifests to server
+        run: |
+          scp BE/package.json BE/package-lock.json deploy-target:${{ env.REMOTE_ROOT }}/backend/
+
+      # --delete so stale files from a previous build (renamed modules, old
+      # content-hashed Vite chunks) are removed rather than accumulating.
+      - name: Copy backend dist to server
+        run: |
+          rsync -az --delete artifacts/backend-dist/. deploy-target:${{ env.REMOTE_ROOT }}/backend/dist/
+
+      - name: Copy frontend dist to server
+        run: |
+          rsync -az --delete artifacts/frontend-dist/. deploy-target:${{ env.REMOTE_ROOT }}/frontend/dist/
+
+      - name: Release on server
+        run: |
+          ssh deploy-target 'bash -euo pipefail -s' <<'REMOTE'
+            cd /srv/volthub
+            docker compose up -d
+
+            cd /srv/volthub/backend
+            npm ci --omit=dev --prefix /srv/volthub/backend
+
+            # `npm ci` wipes node_modules, which takes the generated client in
+            # node_modules/.prisma/client with it, and --omit=dev then drops the
+            # prisma CLI itself. So regenerate against the schema shipped in
+            # dist/, and pin the CLI to the exact version in the lockfile — a
+            # bare `npx prisma` would pull the latest major and generate a client
+            # mismatched with the installed @prisma/client.
+            PRISMA_VERSION="$(node -p "require('./package-lock.json').packages['node_modules/prisma'].version")"
+            npx --yes "prisma@${PRISMA_VERSION}" generate --schema=dist/prisma/schema.prisma
+            npx --yes "prisma@${PRISMA_VERSION}" migrate deploy --schema=dist/prisma/schema.prisma
+
+            pm2 restart volthub-be --update-env
+            pm2 save
+          REMOTE
+
+      - name: Clean up SSH key
+        if: always()
+        run: rm -f ~/.ssh/deploy_key ~/.ssh/config
