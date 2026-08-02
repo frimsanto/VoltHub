@@ -128,6 +128,10 @@ jobs:
           printf '%s\n' "$SSH_PRIVATE_KEY" | sed 's/\r$//' > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -T 5 -H "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+          if [ ! -s ~/.ssh/known_hosts ]; then
+            echo "ssh-keyscan returned no host key for $SSH_HOST — host unreachable or port 22 blocked."
+            exit 1
+          fi
           chmod 644 ~/.ssh/known_hosts
           cat > ~/.ssh/config <<EOF
           Host deploy-target
