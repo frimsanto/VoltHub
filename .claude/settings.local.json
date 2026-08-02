@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem -Recurse \"d:\\\\VoltReport\" -File)",
+      "Bash(Select-Object FullName)",
+      "Bash(Format-List)",
+      "Read(//d/d/VoltReport/BE/**)",
+      "Bash(cd /d/VoltReport/FE && grep -rln \"gisFilterWilayah\\\\|gisDetailPanel\\\\|gisSearchDesktop\" src | head; echo \"=== selectors ===\"; grep -n \"gis\" e2e/selectors.ts)",
+      "Read(//d/d/VoltReport/FE/**)"
+    ]
+  }
+}

@@ -1,0 +1,511 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --font-sans: "Inter", "Inter Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", "Cascadia Code", ui-monospace, monospace;
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 16px);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-pln-yellow: var(--pln-yellow);
+  --color-pln-blue: var(--pln-blue);
+  --color-pln-blue-dark: var(--pln-blue-dark);
+  --color-pln-orange: var(--pln-orange);
+  --color-pln-orange-light: var(--pln-orange-light);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+}
+
+/* ─── LIGHT MODE — "PLN Corporate Bold" (Opsi C) ────────────────────────────── */
+/* Accent primer = oranye PLN; sidebar gelap pekat di kedua mode. */
+:root {
+  /* 8px kartu (rounded-lg), 6px nav item (rounded-md), pill 20px via rounded-full */
+  --radius: 0.5rem;
+
+  --background: oklch(0.985 0.002 240);
+  --foreground: oklch(0.15 0.03 255);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.15 0.03 255);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.15 0.03 255);
+  --primary: oklch(0.65 0.22 35);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.955 0.006 250);
+  --secondary-foreground: oklch(0.2 0.04 255);
+  --muted: oklch(0.955 0.006 250);
+  --muted-foreground: oklch(0.5 0.02 255);
+  --accent: oklch(0.94 0.01 250);
+  --accent-foreground: oklch(0.2 0.04 255);
+  --destructive: oklch(0.6 0.22 27);
+  --destructive-foreground: oklch(0.99 0 0);
+  --success: oklch(0.62 0.18 155);
+  --success-foreground: oklch(0.99 0 0);
+  --warning: oklch(0.75 0.16 88);
+  --warning-foreground: oklch(0.18 0.04 80);
+  --info: oklch(0.55 0.18 240);
+  --info-foreground: oklch(0.99 0 0);
+  --pln-orange: oklch(0.65 0.22 35);
+  --pln-orange-light: oklch(0.97 0.04 35);
+  --pln-blue: oklch(0.45 0.18 255);
+  --pln-blue-dark: oklch(0.28 0.16 260);
+  --pln-yellow: oklch(0.84 0.18 88);
+  --border: oklch(0.92 0.008 250);
+  --input: oklch(0.92 0.008 250);
+  --ring: oklch(0.65 0.22 35);
+  --chart-1: oklch(0.65 0.22 35);
+  --chart-2: oklch(0.55 0.18 240);
+  --chart-3: oklch(0.62 0.18 155);
+  --chart-4: oklch(0.75 0.16 88);
+  --chart-5: oklch(0.6 0.22 27);
+  --sidebar: oklch(0.16 0.06 265);
+  --sidebar-foreground: oklch(0.96 0.005 240);
+  --sidebar-primary: oklch(0.65 0.22 35);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.2 0.07 265);
+  --sidebar-accent-foreground: oklch(0.96 0.005 240);
+  --sidebar-border: oklch(0.22 0.06 265);
+  --sidebar-ring: oklch(0.65 0.22 35);
+}
+
+/* ─── DARK MODE — "PLN Corporate Bold" (Opsi C) ─────────────────────────────── */
+/* Konten gelap, sidebar lebih gelap lagi; oranye PLN tetap sama di dark. */
+.dark {
+  --background: oklch(0.1 0.02 252);
+  --foreground: oklch(0.95 0.005 245);
+  --card: oklch(0.14 0.03 252);
+  --card-foreground: oklch(0.95 0.005 245);
+  --popover: oklch(0.14 0.03 252);
+  --popover-foreground: oklch(0.95 0.005 245);
+  --primary: oklch(0.65 0.22 35);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.19 0.03 252);
+  --secondary-foreground: oklch(0.95 0.005 245);
+  --muted: oklch(0.19 0.03 252);
+  --muted-foreground: oklch(0.68 0.015 250);
+  --accent: oklch(0.22 0.035 252);
+  --accent-foreground: oklch(0.95 0.005 245);
+  --destructive: oklch(0.63 0.2 25);
+  --destructive-foreground: oklch(0.99 0 0);
+  --success: oklch(0.68 0.16 155);
+  --success-foreground: oklch(0.1 0.02 252);
+  --warning: oklch(0.8 0.16 88);
+  --warning-foreground: oklch(0.18 0.04 80);
+  --info: oklch(0.65 0.15 240);
+  --info-foreground: oklch(0.1 0.02 252);
+  --pln-orange: oklch(0.65 0.22 35);
+  --pln-orange-light: oklch(0.21 0.05 50);
+  --pln-blue: oklch(0.68 0.16 242);
+  --pln-blue-dark: oklch(0.38 0.15 258);
+  --pln-yellow: oklch(0.84 0.18 88);
+  --border: oklch(1 0 0 / 9%);
+  --input: oklch(1 0 0 / 11%);
+  --ring: oklch(0.65 0.22 35);
+  --chart-1: oklch(0.65 0.22 35);
+  --chart-2: oklch(0.6 0.17 240);
+  --chart-3: oklch(0.68 0.16 155);
+  --chart-4: oklch(0.8 0.16 88);
+  --chart-5: oklch(0.63 0.2 25);
+  --sidebar: oklch(0.09 0.03 265);
+  --sidebar-foreground: oklch(0.95 0.005 245);
+  --sidebar-primary: oklch(0.65 0.22 35);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.16 0.05 265);
+  --sidebar-accent-foreground: oklch(0.95 0.005 245);
+  --sidebar-border: oklch(0.18 0.05 265);
+  --sidebar-ring: oklch(0.65 0.22 35);
+}
+
+/* ─── BASE LAYER ─────────────────────────────────────────────────────────────── */
+@layer base {
+  * {
+    border-color: var(--color-border);
+    box-sizing: border-box;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    /* Opsi C: body default 14px (heading & label diatur per-komponen). */
+    font-size: 0.875rem;
+    font-feature-settings: "cv11", "ss01", "ss03";
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* ── Native shell: safe areas + keyboard inset ──────────────────────────────
+     `viewport-fit=cover` (index.html) lets the WebView draw under the iOS notch
+     / home indicator and the Android status/navigation bars. `--kb-inset` is
+     driven from JS (useKeyboardInset) to lift sticky elements above the soft
+     keyboard; it defaults to 0 on the web. */
+  :root {
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-right: env(safe-area-inset-right, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-left: env(safe-area-inset-left, 0px);
+    --kb-inset: 0px;
+    --bottomnav-h: calc(3.5rem + var(--safe-bottom));
+    /* Topbar Opsi D (Gradient Hero) = 50px; konsumen lain (GIS fullscreen dsb.) ikut var ini. */
+    --topbar-h: calc(50px + var(--safe-top));
+  }
+  @media (min-width: 768px) {
+    :root {
+      --bottomnav-h: 0px;
+    }
+  }
+}
+
+/* ─── PETUGAS MOBILE — "m-banking" skin (dark navy + orange) ────────────────────
+   Scoped by BOTH `html.petugas-mobile` (toggled in V2AppLayout via the same
+   documentElement-class pattern as lib/theme.ts, so it also reaches Radix
+   portals — Drawer/Dialog/Select — mounted on <body>) AND the <768px media
+   query, so tablet/desktop and every non-PETUGAS role render byte-for-byte
+   the existing "PLN Corporate Bold" theme. Overriding the theme custom
+   properties (not adding new ones) means existing components that already
+   consume bg-card/border-border/rounded-lg reskin for free. */
+@media (max-width: 767px) {
+  html.petugas-mobile {
+    --background: #0e0e16;
+    --foreground: #f5f5f7;
+    --card: #131320;
+    --card-foreground: #f5f5f7;
+    --popover: #131320;
+    --popover-foreground: #f5f5f7;
+    --primary: #f97316;
+    --primary-foreground: #ffffff;
+    --secondary: #1a1a2c;
+    --secondary-foreground: #f5f5f7;
+    --muted: #1a1a2c;
+    --muted-foreground: rgba(255, 255, 255, 0.5);
+    --accent: #1a1a2c;
+    --accent-foreground: #f5f5f7;
+    --border: rgba(255, 255, 255, 0.07);
+    --input: rgba(255, 255, 255, 0.07);
+    --ring: #f97316;
+    /* Card radius spec = 14px; every rounded-lg (Card, inputs, sheets…)
+       derives from this token so the whole surface picks it up at once. */
+    --radius: 14px;
+  }
+  html.petugas-mobile body {
+    background-color: #0e0e16;
+  }
+  /* V2Topbar renders nothing for PETUGAS on phones (each mobile screen owns its
+     own header) — collapse the reserved offset so full-bleed surfaces (the GIS
+     map's `top-(--topbar-h)` overlay) don't leave a blank gap where the bar used
+     to be. */
+  html.petugas-mobile {
+    --topbar-h: var(--safe-top);
+  }
+}
+
+/* ─── UTILITIES ──────────────────────────────────────────────────────────────── */
+@layer utilities {
+  /* Safe area helpers */
+  .pt-safe {
+    padding-top: var(--safe-top);
+  }
+  .pr-safe {
+    padding-right: var(--safe-right);
+  }
+  .pb-safe {
+    padding-bottom: var(--safe-bottom);
+  }
+  .pl-safe {
+    padding-left: var(--safe-left);
+  }
+  .px-safe {
+    padding-left: var(--safe-left);
+    padding-right: var(--safe-right);
+  }
+  .pb-safe-kb {
+    padding-bottom: calc(var(--safe-bottom) + var(--kb-inset));
+  }
+  .bottom-safe {
+    bottom: var(--safe-bottom);
+  }
+
+  /* Touch hit area */
+  @media (pointer: coarse) {
+    .touch-target {
+      min-height: 44px;
+      min-width: 44px;
+    }
+  }
+
+  /* Glass morphism */
+  .glass {
+    background: color-mix(in oklab, var(--card) 75%, transparent);
+    backdrop-filter: blur(16px) saturate(180%);
+    -webkit-backdrop-filter: blur(16px) saturate(180%);
+  }
+  .glass-strong {
+    background: color-mix(in oklab, var(--background) 85%, transparent);
+    backdrop-filter: blur(24px) saturate(200%);
+    -webkit-backdrop-filter: blur(24px) saturate(200%);
+  }
+
+  /* PLN brand gradients */
+  .gradient-pln {
+    background: linear-gradient(135deg, var(--pln-blue-dark), var(--pln-blue));
+  }
+  .gradient-pln-soft {
+    background: linear-gradient(
+      135deg,
+      color-mix(in oklab, var(--pln-blue) 10%, transparent),
+      color-mix(in oklab, var(--pln-yellow) 6%, transparent)
+    );
+  }
+
+  /* Mesh gradient for login brand panel */
+  .mesh-pln {
+    background-color: oklch(0.13 0.04 258);
+    background-image:
+      radial-gradient(
+        ellipse 80% 60% at 15% 10%,
+        color-mix(in oklab, var(--pln-blue) 55%, transparent) 0%,
+        transparent 65%
+      ),
+      radial-gradient(
+        ellipse 55% 50% at 90% 5%,
+        color-mix(in oklab, var(--pln-yellow) 22%, transparent) 0%,
+        transparent 60%
+      ),
+      radial-gradient(
+        ellipse 70% 65% at 70% 100%,
+        color-mix(in oklab, var(--pln-blue) 45%, transparent) 0%,
+        transparent 65%
+      ),
+      radial-gradient(ellipse 50% 50% at 50% 50%, oklch(0.1 0.03 258) 0%, transparent 80%);
+  }
+
+  /* Subtle grid background */
+  .grid-bg {
+    background-image:
+      linear-gradient(to right, oklch(1 0 0 / 4%) 1px, transparent 1px),
+      linear-gradient(to bottom, oklch(1 0 0 / 4%) 1px, transparent 1px);
+    background-size: 28px 28px;
+  }
+
+  /* Shadow system */
+  .shadow-soft {
+    box-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.05),
+      0 4px 12px -4px rgba(0, 0, 0, 0.1);
+  }
+  .shadow-card {
+    box-shadow:
+      0 0 0 1px rgba(0, 0, 0, 0.06),
+      0 2px 4px rgba(0, 0, 0, 0.04),
+      0 8px 20px -8px rgba(0, 0, 0, 0.08);
+  }
+  .shadow-glow-primary {
+    box-shadow: 0 0 20px -4px color-mix(in oklab, var(--primary) 40%, transparent);
+  }
+
+  /* Page header accent */
+  .page-header-accent::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    border-radius: inherit;
+    background:
+      radial-gradient(
+        ellipse 140% 120% at 0% 0%,
+        color-mix(in srgb, var(--color-primary) 8%, transparent) 0%,
+        transparent 55%
+      ),
+      radial-gradient(
+        ellipse 100% 100% at 100% 0%,
+        color-mix(in srgb, var(--color-primary) 5%, transparent) 0%,
+        transparent 50%
+      );
+  }
+
+  /* Shimmer loading */
+  @keyframes shimmer {
+    100% {
+      transform: translateX(100%);
+    }
+  }
+  .shimmer {
+    position: relative;
+    overflow: hidden;
+  }
+  .shimmer::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in srgb, var(--color-foreground) 5%, transparent),
+      transparent
+    );
+    animation: shimmer 1.8s infinite;
+  }
+
+  /* Hide scrollbar cross-browser */
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+/* ─── SweetAlert2 ────────────────────────────────────────────────────────────── */
+/* Keep modals clickable above Radix layers (which set pointer-events: none on
+   <body> while open and occasionally leave it set after closing). */
+.swal2-container {
+  z-index: 100000 !important;
+  pointer-events: auto !important;
+}
+.swal2-popup,
+.swal2-actions,
+.swal2-actions button {
+  pointer-events: auto !important;
+}
+
+/* ─── Leaflet GIS ────────────────────────────────────────────────────────────── */
+/* OSM attribution must stay (license) but recede visually. */
+.leaflet-control-attribution {
+  font-size: 9px;
+  line-height: 1.4;
+  padding: 0 4px;
+  opacity: 0.5;
+  background: color-mix(in srgb, var(--background) 70%, transparent);
+  border-radius: 4px 0 0 0;
+}
+.leaflet-control-attribution:hover {
+  opacity: 0.85;
+}
+.leaflet-control-attribution a {
+  color: inherit;
+}
+/* Phones: lift Leaflet's bottom controls above the tab bar + home indicator. */
+@media (max-width: 767px) {
+  .leaflet-bottom {
+    bottom: var(--bottomnav-h);
+    transition: bottom 0.3s ease-out;
+  }
+}
+
+/* ─── AI Assistant markdown ──────────────────────────────────────────────────── */
+/* Assistant chat bubbles render markdown via react-markdown; style the output to
+   fit the compact bubble instead of relying on the (unused) typography plugin. */
+.ai-markdown p {
+  margin: 0 0 8px 0;
+}
+.ai-markdown p:last-child {
+  margin-bottom: 0;
+}
+.ai-markdown ul,
+.ai-markdown ol {
+  margin: 4px 0 8px 16px;
+}
+.ai-markdown li {
+  margin: 2px 0;
+}
+.ai-markdown h1,
+.ai-markdown h2,
+.ai-markdown h3,
+.ai-markdown h4 {
+  margin: 8px 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.ai-markdown hr {
+  margin: 8px 0;
+  opacity: 0.2;
+}
+.ai-markdown strong {
+  font-weight: 600;
+  color: inherit;
+}
+.ai-markdown a {
+  color: var(--color-primary);
+  text-underline-offset: 2px;
+}
+.ai-markdown code {
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: color-mix(in oklab, currentColor 8%, transparent);
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.ai-markdown pre {
+  margin: 4px 0 8px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.ai-markdown pre code {
+  padding: 0;
+  background: none;
+}
+
+/* ─── Reduced Motion ─────────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .shimmer::after {
+    animation: none;
+  }
+}

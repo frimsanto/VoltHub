@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">VoltHub</string>
+    <string name="title_activity_main">VoltHub</string>
+    <string name="package_name">id.pln.voltreport</string>
+    <string name="custom_url_scheme">id.pln.voltreport</string>
+</resources>

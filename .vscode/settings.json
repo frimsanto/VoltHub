@@ -1,0 +1,9 @@
+{
+  // Use the TypeScript version pinned in the project (5.9.3) instead of the
+  // newer one bundled with VS Code. The bundled compiler flags `moduleResolution`
+  // and `baseUrl` as deprecated ("will stop functioning in TypeScript 7.0") and
+  // resolves some type entries differently — neither the project nor `tsc` agrees
+  // with those diagnostics.
+  "typescript.tsdk": "portal/node_modules/typescript/lib",
+  "typescript.enablePromptUseWorkspaceTsdk": true
+}

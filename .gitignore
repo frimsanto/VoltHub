@@ -1,0 +1,73 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+dist/
+dist-ssr/
+build/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Prisma
+prisma/migrations/dev.db
+
+# Uploads & temp
+uploads/
+private-uploads/
+temp/
+scratchpad/
+
+# Test & coverage
+coverage/
+test-results/
+playwright-report/
+e2e/results/
+
+# Capacitor
+FE/android/app/build/
+FE/ios/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Archives & dumps
+*.zip
+*.sql
+*.xlsx
+*.csv
+!BE/prisma/migrations/**/*.sql
+!BE/prisma/baseline/*.sql
+!.claude/skills/**/*.csv
+
+# BE internal dumps
+BE/database/
+BE/backups/
+BE/voltreport.sql
+BE/sample-data.sql
+BE/*.sql
+catatan/
+docs.zip
+dump.sql
+gardu-rtupp-mapping-review.csv
+gh-mapping-review.csv
+data_aset/
+dokumen_lengkap/
+icon/
+portal/
+backup_*.sql
+ASET*.xlsx
+Laporan*.xlsx
+csd_*.xlsx
+DAFTAR*.xlsx
+package-lock.json

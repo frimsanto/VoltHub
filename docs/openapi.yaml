@@ -1,0 +1,2133 @@
+openapi: 3.0.3
+info:
+  title: VoltReport V2 — Asset Management API
+  version: 2.0.0
+  description: >-
+    Sprint 1: Locations, Feeders, Assets, Asset SIM Cards, Communication Media. All responses follow the ApiResponse
+    envelope `{ success, message, data, meta }`.
+servers:
+  - url: /api/v1
+    description: V2 base path
+tags:
+  - name: Locations
+  - name: Feeders
+  - name: Assets
+  - name: Asset SIM Cards
+  - name: Communication Media
+  - name: Inspections
+  - name: HAR
+  - name: Documents
+  - name: Reports
+  - name: Imports
+  - name: AI
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    Location:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        code:
+          type: string
+        name:
+          type: string
+        locationType:
+          type: string
+          enum:
+            - GI
+            - GH
+            - GARDU
+        up3:
+          type: string
+          nullable: true
+        address:
+          type: string
+          nullable: true
+        latitude:
+          type: number
+          nullable: true
+        longitude:
+          type: number
+          nullable: true
+        status:
+          type: boolean
+        scadaOperState:
+          type: string
+          nullable: true
+          description: >-
+            Oper State RTU dari snapshot SP7 terbaru (UP = RC Inscan, selain itu
+            = RC OOP). Null bila gardu tidak terdaftar di snapshot.
+    CreateLocation:
+      type: object
+      required:
+        - name
+        - locationType
+      properties:
+        code:
+          type: string
+          description: Optional — auto-generated server-side from `name` when omitted.
+        name:
+          type: string
+        locationType:
+          type: string
+          enum:
+            - GI
+            - GH
+            - GARDU
+        up3:
+          type: string
+          nullable: true
+        address:
+          type: string
+          nullable: true
+        latitude:
+          type: number
+          nullable: true
+        longitude:
+          type: number
+          nullable: true
+        status:
+          type: boolean
+          default: true
+    UpdateLocation:
+      allOf:
+        - $ref: '#/components/schemas/CreateLocation'
+    Feeder:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        locationId:
+          type: string
+          format: uuid
+        feederCode:
+          type: string
+        feederName:
+          type: string
+    CreateFeeder:
+      type: object
+      required:
+        - locationId
+        - feederName
+      properties:
+        locationId:
+          type: string
+          format: uuid
+        feederCode:
+          type: string
+          description: Optional — auto-generated server-side from `feederName` when omitted.
+        feederName:
+          type: string
+    UpdateFeeder:
+      allOf:
+        - $ref: '#/components/schemas/CreateFeeder'
+    Asset:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        locationId:
+          type: string
+          format: uuid
+        feederId:
+          type: string
+          format: uuid
+          nullable: true
+        parentAssetId:
+          type: string
+          format: uuid
+          nullable: true
+        assetType:
+          type: string
+          enum:
+            - RTU
+            - FDI
+            - RECTIFIER
+            - BATTERY_BANK
+            - ROUTER
+            - MODEM
+            - RADIO
+        assetCode:
+          type: string
+        assetName:
+          type: string
+        status:
+          type: string
+          enum:
+            - ACTIVE
+            - WARNING
+            - DAMAGED
+            - RETIRED
+    CreateAsset:
+      type: object
+      required:
+        - locationId
+        - assetType
+        - assetName
+      properties:
+        locationId:
+          type: string
+          format: uuid
+        feederId:
+          type: string
+          format: uuid
+          nullable: true
+        parentAssetId:
+          type: string
+          format: uuid
+          nullable: true
+        assetType:
+          type: string
+          enum:
+            - RTU
+            - FDI
+            - RECTIFIER
+            - BATTERY_BANK
+            - ROUTER
+            - MODEM
+            - RADIO
+        assetCode:
+          type: string
+          description: Optional — auto-generated server-side from `assetName` when omitted.
+        assetName:
+          type: string
+        brand:
+          type: string
+          nullable: true
+        model:
+          type: string
+          nullable: true
+        serialNumber:
+          type: string
+          nullable: true
+        tahunOperasi:
+          type: integer
+          nullable: true
+        status:
+          type: string
+          enum:
+            - ACTIVE
+            - WARNING
+            - DAMAGED
+            - RETIRED
+        notes:
+          type: string
+          nullable: true
+        protocol:
+          type: string
+          nullable: true
+        asdu:
+          type: string
+          nullable: true
+        linkAddress:
+          type: string
+          nullable: true
+        pairChannel:
+          type: string
+          nullable: true
+        masterIp1:
+          type: string
+          nullable: true
+        masterIp2:
+          type: string
+          nullable: true
+        batteryCount:
+          type: integer
+          nullable: true
+        capacity:
+          type: string
+          nullable: true
+    UpdateAsset:
+      allOf:
+        - $ref: '#/components/schemas/CreateAsset'
+    SimCard:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        assetId:
+          type: string
+          format: uuid
+        simSlot:
+          type: integer
+        provider:
+          type: string
+          nullable: true
+        phoneNumber:
+          type: string
+          nullable: true
+        iccid:
+          type: string
+          nullable: true
+        ipAddress:
+          type: string
+          nullable: true
+    CreateSimCard:
+      type: object
+      required:
+        - simSlot
+      properties:
+        simSlot:
+          type: integer
+          minimum: 1
+        provider:
+          type: string
+          nullable: true
+        phoneNumber:
+          type: string
+          nullable: true
+        iccid:
+          type: string
+          nullable: true
+        ipAddress:
+          type: string
+          nullable: true
+    UpdateSimCard:
+      allOf:
+        - $ref: '#/components/schemas/CreateSimCard'
+    CommunicationMedia:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        locationId:
+          type: string
+          format: uuid
+        mediaType:
+          type: string
+          enum:
+            - GSM_4G
+            - GSM_2G
+            - RADIO_DATA
+            - FO
+            - ICON_GSM
+            - ICON_IPVPN
+        provider:
+          type: string
+          nullable: true
+        status:
+          type: boolean
+        notes:
+          type: string
+          nullable: true
+    CreateCommunicationMedia:
+      type: object
+      required:
+        - locationId
+        - mediaType
+      properties:
+        locationId:
+          type: string
+          format: uuid
+        mediaType:
+          type: string
+          enum:
+            - GSM_4G
+            - GSM_2G
+            - RADIO_DATA
+            - FO
+            - ICON_GSM
+            - ICON_IPVPN
+        provider:
+          type: string
+          nullable: true
+        status:
+          type: boolean
+          default: true
+        notes:
+          type: string
+          nullable: true
+    UpdateCommunicationMedia:
+      allOf:
+        - $ref: '#/components/schemas/CreateCommunicationMedia'
+    CreateInspection:
+      type: object
+      required:
+        - locationId
+        - inspectionDate
+      properties:
+        locationId:
+          type: string
+          format: uuid
+        inspectionDate:
+          type: string
+          format: date
+          example: '2026-06-01'
+        notes:
+          type: string
+          nullable: true
+    CreateFinding:
+      type: object
+      required:
+        - assetId
+        - status
+      properties:
+        assetId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum:
+            - NORMAL
+            - WARNING
+            - CRITICAL
+        finding:
+          type: string
+          nullable: true
+        recommendation:
+          type: string
+          nullable: true
+    CreateHarReport:
+      type: object
+      required:
+        - locationId
+        - reportDate
+      properties:
+        locationId:
+          type: string
+          format: uuid
+        reportDate:
+          type: string
+          format: date
+          example: '2026-06-01'
+    CreateHarDetail:
+      type: object
+      required:
+        - assetId
+        - status
+      properties:
+        assetId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum:
+            - NORMAL
+            - WARNING
+            - CRITICAL
+            - OFFLINE
+        analysis:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+    UpdateHarDetail:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+            - NORMAL
+            - WARNING
+            - CRITICAL
+            - OFFLINE
+        analysis:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+    GenerateInspectionReport:
+      type: object
+      required:
+        - inspectionId
+      properties:
+        inspectionId:
+          type: string
+          format: uuid
+    GenerateHarReport:
+      type: object
+      required:
+        - harReportId
+      properties:
+        harReportId:
+          type: string
+          format: uuid
+paths:
+  /locations:
+    get:
+      tags:
+        - Locations
+      summary: List location
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+        - in: query
+          name: search
+          schema:
+            type: string
+        - in: query
+          name: type
+          schema:
+            type: string
+            enum:
+              - GI
+              - GH
+              - GARDU
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Success
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Location'
+                  meta:
+                    type: object
+                    properties:
+                      page:
+                        type: integer
+                        example: 1
+                      limit:
+                        type: integer
+                        example: 20
+                      total:
+                        type: integer
+                        example: 42
+                      totalPages:
+                        type: integer
+                        example: 3
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden — insufficient role
+        '404':
+          description: Not Found
+        '409':
+          description: Conflict — duplicate data
+        '422':
+          description: Validation / business rule error
+    post:
+      tags:
+        - Locations
+      summary: 'Create location (roles: SUPERADMIN, ADMIN)'
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateLocation'
+      responses:
+        '201':
+          description: Created
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden — insufficient role
+        '404':
+          description: Not Found
+        '409':
+          description: Conflict — duplicate data
+        '422':
+          description: Validation / business rule error
+  /locations/{id}:
+    get:
+      tags:
+        - Locations
+      summary: Get location by id
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden — insufficient role
+        '404':
+          description: Not Found
+        '409':
+          description: Conflict — duplicate data
+        '422':
+          description: Validation / business rule error
+    put:
+      tags:
+        - Locations
+      summary: 'Update location (roles: SUPERADMIN, ADMIN)'
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateLocation'
+      responses:
+        '200':
+          description: Updated
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden — insufficient role
+        '404':
+          description: Not Found
+        '409':
+          description: Conflict — duplicate data
+        '422':
+          description: Validation / business rule error
+    delete:
+      tags:
+        - Locations
+      summary: 'Soft delete location (roles: SUPERADMIN, ADMIN)'
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Deleted
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden — insufficient role
+        '404':
+          description: Not Found
+        '409':
+          description: Conflict — duplicate data
+        '422':
+          description: Validation / business rule error
+  /feeders:
+    get:
+      tags:
+        - Feeders
+      summary: List feeder
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+        - in: query
+          name: search
+          schema:
+            type: string
+        - in: query
+          name: locationId
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Success
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Feeder'
+                  meta:
+                    type: object
+                    properties:
+                      page:
+                        type: integer
+                        example: 1
+                      limit:
+                        type: integer
+                        example: 20
+                      total:
+                        type: integer
+                        example: 42
+                      totalPages:
+                        type: integer
+                        example: 3
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden — insufficient role
+        '404':
+          description: Not Found
+        '409':
+          description: Conflict — duplicate data
+        '422':
+          description: Validation / business rule error
+    post:
+      tags:
+        - Feeders
+      summary: 'Create feeder (roles: SUPERADMIN, ADMIN)'
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateFeeder'
+      responses:
+        '201':
+          description: Created
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden — insufficient role
+        '404':
+          description: Not Found
+        '409':
+          description: Conflict — duplicate data
+        '422':
+          description: Validation / business rule error
+  /feeders/{id}:
+    get:
+      tags:
+        - Feeders
+      summary: Get feeder by id
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden — insufficient role
+        '404':
+          description: Not Found
+        '409':
+          description: Conflict — duplicate data
+        '422':
+          description: Validation / business rule error
+    put:
+      tags:
+        - Feeders
+      summary: 'Update feeder (roles: SUPERADMIN, ADMIN)'
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateFeeder'
+      responses:
+        '200':
+          description: Updated
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden — insufficient role
+        '404':
+          description: Not Found
+        '409':
+          description: Conflict — duplicate data
+        '422':
+          description: Validation / business rule error
+    delete:
+      tags:
+        - Feeders
+      summary: 'Soft delete feeder (roles: SUPERADMIN, ADMIN)'
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Deleted
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden — insufficient role
+        '404':
+          description: Not Found
+        '409':
+          description: Conflict — duplicate data
+        '422':
+          description: Validation / business rule error
+  /assets:
+    get:
+      tags:
+        - Assets
+      summary: List asset
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+        - in: query
+          name: search
+          schema:
+            type: string
+        - in: query
+          name: assetType
+          schema:
+            type: string
+            enum:
+              - RTU
+              - FDI
+              - RECTIFIER
+              - BATTERY_BANK
+              - ROUTER
+              - MODEM
+              - RADIO
+        - in: query
+          name: locationId
+          schema:
+            type: string
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum:
+              - ACTIVE
+              - WARNING
+              - DAMAGED
+              - RETIRED
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Success
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Asset'
+                  meta:
+                    type: object
+                    properties:
+                      page:
+                        type: integer
+                        example: 1
+                      limit:
+                        type: integer
+                        example: 20
+                      total:
+                        type: integer
+                        example: 42
+                      totalPages:
+                        type: integer
+                        example: 3
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden — insufficient role
+        '404':
+          description: Not Found
+        '409':
+          description: Conflict — duplicate data
+        '422':
+          description: Validation / business rule error
+    post:
+      tags:
+        - Assets
+      summary: 'Create asset (roles: SUPERADMIN, ADMIN, ADMIN_RTUPP)'
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAsset'
+      responses:
+        '201':
+          description: Created
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden — insufficient role
+        '404':
+          description: Not Found
+        '409':
+          description: Conflict — duplicate data
+        '422':
+          description: Validation / business rule error
+  /assets/{id}:
+    get:
+      tags:
+        - Assets
+      summary: Get asset by id
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden — insufficient role
+        '404':
+          description: Not Found
+        '409':
+          description: Conflict — duplicate data
+        '422':
+          description: Validation / business rule error
+    put:
+      tags:
+        - Assets
+      summary: 'Update asset (roles: SUPERADMIN, ADMIN, ADMIN_RTUPP)'
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAsset'
+      responses:
+        '200':
+          description: Updated
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden — insufficient role
+        '404':
+          description: Not Found
+        '409':
+          description: Conflict — duplicate data
+        '422':
+          description: Validation / business rule error
+    delete:
+      tags:
+        - Assets
+      summary: 'Soft delete asset (roles: SUPERADMIN, ADMIN, ADMIN_RTUPP)'
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Deleted
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden — insufficient role
+        '404':
+          description: Not Found
+        '409':
+          description: Conflict — duplicate data
+        '422':
+          description: Validation / business rule error
+  /assets/{assetId}/sim-cards:
+    get:
+      tags:
+        - Asset SIM Cards
+      summary: List SIM cards of an asset
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: assetId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden — insufficient role
+        '404':
+          description: Not Found
+        '409':
+          description: Conflict — duplicate data
+        '422':
+          description: Validation / business rule error
+    post:
+      tags:
+        - Asset SIM Cards
+      summary: 'Add SIM card to asset (roles: SUPERADMIN, ADMIN, ADMIN_RTUPP)'
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: assetId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSimCard'
+      responses:
+        '201':
+          description: Created
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden — insufficient role
+        '404':
+          description: Not Found
+        '409':
+          description: Conflict — duplicate data
+        '422':
+          description: Validation / business rule error
+  /sim-cards/{id}:
+    put:
+      tags:
+        - Asset SIM Cards
+      summary: 'Update SIM card (roles: SUPERADMIN, ADMIN, ADMIN_RTUPP)'
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSimCard'
+      responses:
+        '200':
+          description: Updated
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden — insufficient role
+        '404':
+          description: Not Found
+        '409':
+          description: Conflict — duplicate data
+        '422':
+          description: Validation / business rule error
+    delete:
+      tags:
+        - Asset SIM Cards
+      summary: 'Delete SIM card (roles: SUPERADMIN, ADMIN, ADMIN_RTUPP)'
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Deleted
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden — insufficient role
+        '404':
+          description: Not Found
+        '409':
+          description: Conflict — duplicate data
+        '422':
+          description: Validation / business rule error
+  /communication-media:
+    get:
+      tags:
+        - Communication Media
+      summary: List communication media
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+        - in: query
+          name: search
+          schema:
+            type: string
+        - in: query
+          name: locationId
+          schema:
+            type: string
+        - in: query
+          name: mediaType
+          schema:
+            type: string
+            enum:
+              - GSM_4G
+              - GSM_2G
+              - RADIO_DATA
+              - FO
+              - ICON_GSM
+              - ICON_IPVPN
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Success
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CommunicationMedia'
+                  meta:
+                    type: object
+                    properties:
+                      page:
+                        type: integer
+                        example: 1
+                      limit:
+                        type: integer
+                        example: 20
+                      total:
+                        type: integer
+                        example: 42
+                      totalPages:
+                        type: integer
+                        example: 3
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden — insufficient role
+        '404':
+          description: Not Found
+        '409':
+          description: Conflict — duplicate data
+        '422':
+          description: Validation / business rule error
+    post:
+      tags:
+        - Communication Media
+      summary: 'Create communication media (roles: SUPERADMIN, ADMIN, ADMIN_RTUPP)'
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCommunicationMedia'
+      responses:
+        '201':
+          description: Created
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden — insufficient role
+        '404':
+          description: Not Found
+        '409':
+          description: Conflict — duplicate data
+        '422':
+          description: Validation / business rule error
+  /communication-media/{id}:
+    get:
+      tags:
+        - Communication Media
+      summary: Get communication media by id
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden — insufficient role
+        '404':
+          description: Not Found
+        '409':
+          description: Conflict — duplicate data
+        '422':
+          description: Validation / business rule error
+    put:
+      tags:
+        - Communication Media
+      summary: 'Update communication media (roles: SUPERADMIN, ADMIN, ADMIN_RTUPP)'
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCommunicationMedia'
+      responses:
+        '200':
+          description: Updated
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden — insufficient role
+        '404':
+          description: Not Found
+        '409':
+          description: Conflict — duplicate data
+        '422':
+          description: Validation / business rule error
+    delete:
+      tags:
+        - Communication Media
+      summary: 'Soft delete communication media (roles: SUPERADMIN, ADMIN, ADMIN_RTUPP)'
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Deleted
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden — insufficient role
+        '404':
+          description: Not Found
+        '409':
+          description: Conflict — duplicate data
+        '422':
+          description: Validation / business rule error
+  /inspections:
+    get:
+      tags:
+        - Inspections
+      summary: List inspections
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+        - in: query
+          name: search
+          schema:
+            type: string
+        - in: query
+          name: locationId
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden — insufficient role
+        '404':
+          description: Not Found
+        '409':
+          description: Conflict — duplicate data
+        '422':
+          description: Validation / business rule error
+    post:
+      tags:
+        - Inspections
+      summary: Create inspection (any authenticated role; inspector = current user)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateInspection'
+      responses:
+        '201':
+          description: Created
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden — insufficient role
+        '404':
+          description: Not Found
+        '409':
+          description: Conflict — duplicate data
+        '422':
+          description: Validation / business rule error
+  /inspections/{id}:
+    get:
+      tags:
+        - Inspections
+      summary: Get inspection (with findings + photos)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden — insufficient role
+        '404':
+          description: Not Found
+        '409':
+          description: Conflict — duplicate data
+        '422':
+          description: Validation / business rule error
+  /inspections/{id}/findings:
+    post:
+      tags:
+        - Inspections
+      summary: Add finding to inspection
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateFinding'
+      responses:
+        '201':
+          description: Created
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden — insufficient role
+        '404':
+          description: Not Found
+        '409':
+          description: Conflict — duplicate data
+        '422':
+          description: Validation / business rule error
+  /findings/{id}/photos:
+    post:
+      tags:
+        - Inspections
+      summary: Upload photo to a finding (multipart/form-data)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - photo
+              properties:
+                photo:
+                  type: string
+                  format: binary
+                caption:
+                  type: string
+      responses:
+        '201':
+          description: Created
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden — insufficient role
+        '404':
+          description: Not Found
+        '409':
+          description: Conflict — duplicate data
+        '422':
+          description: Validation / business rule error
+  /har-reports:
+    get:
+      tags:
+        - HAR
+      summary: List HAR reports
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+        - in: query
+          name: search
+          schema:
+            type: string
+        - in: query
+          name: locationId
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden — insufficient role
+        '404':
+          description: Not Found
+        '409':
+          description: Conflict — duplicate data
+        '422':
+          description: Validation / business rule error
+    post:
+      tags:
+        - HAR
+      summary: Create HAR report (any authenticated role)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateHarReport'
+      responses:
+        '201':
+          description: Created
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden — insufficient role
+        '404':
+          description: Not Found
+        '409':
+          description: Conflict — duplicate data
+        '422':
+          description: Validation / business rule error
+  /har-reports/{id}:
+    get:
+      tags:
+        - HAR
+      summary: Get HAR report (with details)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden — insufficient role
+        '404':
+          description: Not Found
+        '409':
+          description: Conflict — duplicate data
+        '422':
+          description: Validation / business rule error
+  /har-reports/{id}/details:
+    post:
+      tags:
+        - HAR
+      summary: Add asset-status detail to HAR (one detail per asset per report)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateHarDetail'
+      responses:
+        '201':
+          description: Created
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden — insufficient role
+        '404':
+          description: Not Found
+        '409':
+          description: Conflict — duplicate data
+        '422':
+          description: Validation / business rule error
+  /har-reports/{id}/details/{detailId}:
+    put:
+      tags:
+        - HAR
+      summary: 'Update HAR detail (roles: SUPERADMIN, ADMIN, ADMIN_RTUPP)'
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - in: path
+          name: detailId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateHarDetail'
+      responses:
+        '200':
+          description: Updated
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden — insufficient role
+        '404':
+          description: Not Found
+        '409':
+          description: Conflict — duplicate data
+        '422':
+          description: Validation / business rule error
+    delete:
+      tags:
+        - HAR
+      summary: 'Delete HAR detail (roles: SUPERADMIN, ADMIN, ADMIN_RTUPP)'
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - in: path
+          name: detailId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Deleted
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden — insufficient role
+        '404':
+          description: Not Found
+        '409':
+          description: Conflict — duplicate data
+        '422':
+          description: Validation / business rule error
+  /documents:
+    get:
+      tags:
+        - Documents
+      summary: List documents
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+        - in: query
+          name: search
+          schema:
+            type: string
+        - in: query
+          name: locationId
+          schema:
+            type: string
+        - in: query
+          name: assetId
+          schema:
+            type: string
+        - in: query
+          name: documentType
+          schema:
+            type: string
+            enum:
+              - PHOTO
+              - BERITA_ACARA
+              - MANUAL_BOOK
+              - SERTIFIKAT
+              - INSPECTION_DOC
+              - OTHER
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden — insufficient role
+        '404':
+          description: Not Found
+        '409':
+          description: Conflict — duplicate data
+        '422':
+          description: Validation / business rule error
+    post:
+      tags:
+        - Documents
+      summary: Upload document (multipart/form-data; any authenticated role)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - documentType
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                documentType:
+                  type: string
+                  enum:
+                    - PHOTO
+                    - BERITA_ACARA
+                    - MANUAL_BOOK
+                    - SERTIFIKAT
+                    - INSPECTION_DOC
+                    - OTHER
+                locationId:
+                  type: string
+                assetId:
+                  type: string
+                documentName:
+                  type: string
+      responses:
+        '201':
+          description: Created
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden — insufficient role
+        '404':
+          description: Not Found
+        '409':
+          description: Conflict — duplicate data
+        '422':
+          description: Validation / business rule error
+  /documents/{id}:
+    get:
+      tags:
+        - Documents
+      summary: Get document by id
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden — insufficient role
+        '404':
+          description: Not Found
+        '409':
+          description: Conflict — duplicate data
+        '422':
+          description: Validation / business rule error
+    delete:
+      tags:
+        - Documents
+      summary: 'Soft delete document (roles: SUPERADMIN, ADMIN, ADMIN_RTUPP)'
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Deleted
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden — insufficient role
+        '404':
+          description: Not Found
+        '409':
+          description: Conflict — duplicate data
+        '422':
+          description: Validation / business rule error
+  /reports/generate/inspection:
+    post:
+      tags:
+        - Reports
+      summary: 'Generate Inspection PDF (roles: SUPERADMIN, ADMIN, ADMIN_RTUPP)'
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateInspectionReport'
+      responses:
+        '201':
+          description: Generated
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden — insufficient role
+        '404':
+          description: Not Found
+        '409':
+          description: Conflict — duplicate data
+        '422':
+          description: Validation / business rule error
+  /reports/generate/har:
+    post:
+      tags:
+        - Reports
+      summary: 'Generate HAR PDF (roles: SUPERADMIN, ADMIN, ADMIN_RTUPP)'
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateHarReport'
+      responses:
+        '201':
+          description: Generated
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden — insufficient role
+        '404':
+          description: Not Found
+        '409':
+          description: Conflict — duplicate data
+        '422':
+          description: Validation / business rule error
+  /reports/generated:
+    get:
+      tags:
+        - Reports
+      summary: List generated reports
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+        - in: query
+          name: search
+          schema:
+            type: string
+        - in: query
+          name: locationId
+          schema:
+            type: string
+        - in: query
+          name: reportType
+          schema:
+            type: string
+            enum:
+              - INSPECTION
+              - HAR
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden — insufficient role
+        '404':
+          description: Not Found
+        '409':
+          description: Conflict — duplicate data
+        '422':
+          description: Validation / business rule error
+  /reports/generated/{id}/download:
+    get:
+      tags:
+        - Reports
+      summary: Download generated report PDF
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: PDF file
+          content:
+            application/pdf: {}
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden — insufficient role
+        '404':
+          description: Not Found
+        '409':
+          description: Conflict — duplicate data
+        '422':
+          description: Validation / business rule error
+  /imports/assets:
+    post:
+      tags:
+        - Imports
+      summary: Import assets from Excel (.xlsx) — multipart/form-data
+      description: >-
+        Columns (header, case/space-insensitive): locationCode*, feederCode, assetType*, assetCode*, assetName*, brand,
+        model, serialNumber, tahunOperasi, status, notes. Returns the ImportJob summary
+        (totalRows/successRows/failedRows/status).
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '201':
+          description: Import finished (see summary)
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden — insufficient role
+        '404':
+          description: Not Found
+        '409':
+          description: Conflict — duplicate data
+        '422':
+          description: Validation / business rule error
+  /imports/jobs:
+    get:
+      tags:
+        - Imports
+      summary: List import jobs
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+        - in: query
+          name: search
+          schema:
+            type: string
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum:
+              - PENDING
+              - PROCESSING
+              - SUCCESS
+              - FAILED
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden — insufficient role
+        '404':
+          description: Not Found
+        '409':
+          description: Conflict — duplicate data
+        '422':
+          description: Validation / business rule error
+  /imports/jobs/{id}:
+    get:
+      tags:
+        - Imports
+      summary: Get import job summary
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden — insufficient role
+        '404':
+          description: Not Found
+        '409':
+          description: Conflict — duplicate data
+        '422':
+          description: Validation / business rule error
+  /imports/jobs/{id}/errors:
+    get:
+      tags:
+        - Imports
+      summary: List per-row errors of an import job
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden — insufficient role
+        '404':
+          description: Not Found
+        '409':
+          description: Conflict — duplicate data
+        '422':
+          description: Validation / business rule error
+  /ai/assets/search:
+    get:
+      tags:
+        - AI
+      summary: AI-ready asset search by location query
+      description: >-
+        Resolves `q` to a location (exact code, then fuzzy code/name) and returns its assets, communication media, last
+        inspection, last HAR and document count — the structured feed for the WhatsApp AI / dashboard / global search
+        (TDD §15).
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: q
+          required: true
+          schema:
+            type: string
+          example: KB305
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden — insufficient role
+        '404':
+          description: Not Found
+        '409':
+          description: Conflict — duplicate data
+        '422':
+          description: Validation / business rule error

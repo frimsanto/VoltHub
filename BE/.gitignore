@@ -1,0 +1,13 @@
+
+# Vitest coverage
+/coverage/
+
+# Environment files — never commit real secrets; *.example templates ARE committed
+.env
+.env.local
+.env.development
+.env.staging
+.env.production
+!.env.example
+!.env.staging.example
+!.env.production.example

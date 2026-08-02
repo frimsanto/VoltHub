@@ -1,0 +1,580 @@
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useAuthStore } from "@/stores/auth";
+import { PageHeader } from "@/components/common";
+import {
+  ReportEmptyState,
+  ReportStatusBadge,
+  ReportJenisBadge,
+  useDashboard,
+} from "@/features/report";
+import type { DashboardStats } from "@/lib/api/dashboard";
+import {
+  FileText,
+  Clock,
+  CheckCircle2,
+  XCircle,
+  Percent,
+  CalendarDays,
+  Plus,
+  FileCheck2,
+  Activity,
+  Briefcase,
+  Layers,
+} from "lucide-react";
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  BarChart,
+  Bar,
+  Legend,
+} from "recharts";
+
+export const Route = createFileRoute("/_app/dashboard")({
+  component: Dashboard,
+  head: () => ({ meta: [{ title: "Dashboard — VoltReport" }] }),
+});
+
+// ─── Konstanta tampilan ─────────────────────────────────────────────────────────
+
+const EMPTY_STATS: DashboardStats = {
+  totalToday: 0,
+  totalReports: 0,
+  pendingReports: 0,
+  approvedReports: 0,
+  rejectedReports: 0,
+  draftReports: 0,
+  recentActivities: [],
+  recentReports: [],
+  trendReports: [],
+  statusDistribution: [],
+  deviceConditions: [],
+  jobStatistics: [],
+};
+
+// Warna status untuk pie (selaras dengan StatusBadge). Backend hanya kirim {name,value}.
+const STATUS_COLOR: Record<string, string> = {
+  Approved: "#22c55e",
+  Pending: "#f59e0b",
+  Rejected: "#ef4444",
+  Draft: "#94a3b8",
+};
+
+const CHART_TOOLTIP = {
+  background: "var(--color-card)",
+  border: "1px solid var(--color-border)",
+  borderRadius: 12,
+} as const;
+
+// ─── Sub-komponen ────────────────────────────────────────────────────────────────
+
+function KpiCard({
+  label,
+  value,
+  sub,
+  icon: Icon,
+  color,
+}: {
+  label: string;
+  value: string | number;
+  sub?: string;
+  icon: React.ComponentType<{ className?: string }>;
+  color: string;
+}) {
+  return (
+    <Card className="rounded-2xl shadow-soft border-border/60 hover:shadow-md transition">
+      <CardContent className="p-5">
+        <div className={`size-10 rounded-xl flex items-center justify-center ${color}`}>
+          <Icon className="size-5" />
+        </div>
+        <div className="mt-4 text-3xl font-bold tabular-nums">{value}</div>
+        <div className="text-xs font-medium mt-1">{label}</div>
+        {sub && <div className="text-[11px] text-muted-foreground mt-0.5">{sub}</div>}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Halaman ──────────────────────────────────────────────────────────────────────
+
+function Dashboard() {
+  const user = useAuthStore((s) => s.user);
+  const { stats: statsQuery, byJenis: byJenisQuery } = useDashboard();
+
+  const isLoading = statsQuery.isLoading;
+  const s = statsQuery.data ?? EMPTY_STATS;
+
+  const recent = Array.isArray(s.recentReports) ? s.recentReports : [];
+  const activities = Array.isArray(s.recentActivities) ? s.recentActivities : [];
+  const trend = Array.isArray(s.trendReports) ? s.trendReports : [];
+  const statusPie = Array.isArray(s.statusDistribution) ? s.statusDistribution : [];
+  const jobStats = Array.isArray(s.jobStatistics) ? s.jobStatistics : [];
+
+  // Approval Rate = approved / (approved + rejected); aman terhadap pembagi 0.
+  const decided = (s.approvedReports || 0) + (s.rejectedReports || 0);
+  const approvalRate = decided > 0 ? Math.round((s.approvedReports / decided) * 100) : null;
+
+  const KPIS = [
+    {
+      label: "Total Reports",
+      value: Number(s.totalReports || 0),
+      icon: FileText,
+      color: "text-info bg-info/10",
+    },
+    {
+      label: "Pending",
+      value: Number(s.pendingReports || 0),
+      icon: Clock,
+      color: "text-warning-foreground bg-warning/15",
+    },
+    {
+      label: "Approved",
+      value: Number(s.approvedReports || 0),
+      icon: CheckCircle2,
+      color: "text-success bg-success/10",
+    },
+    {
+      label: "Rejected",
+      value: Number(s.rejectedReports || 0),
+      icon: XCircle,
+      color: "text-destructive bg-destructive/10",
+    },
+    {
+      label: "Approval Rate",
+      value: approvalRate === null ? "—" : `${approvalRate}%`,
+      sub: decided > 0 ? `dari ${decided} laporan diputuskan` : "belum ada keputusan",
+      icon: Percent,
+      color: "text-primary bg-primary/10",
+    },
+    {
+      label: "Reports Today",
+      value: Number(s.totalToday || 0),
+      sub: "dibuat hari ini",
+      icon: CalendarDays,
+      color: "text-pln-blue bg-primary/10",
+    },
+  ];
+
+  // Data tren 14 hari (stacked): Awal + Akhir.
+  const trendData = trend.map((t) => ({
+    day: t.date,
+    Awal: t.awal || 0,
+    Akhir: t.akhir || 0,
+  }));
+
+  // Reports by Jenis dari /history/stats.
+  const bj = byJenisQuery.data;
+  const jenisData = bj
+    ? [
+        { name: "Awal", value: bj.laporanAwal?.total || 0, color: "var(--color-chart-1)" },
+        { name: "Akhir", value: bj.laporanAkhir?.total || 0, color: "var(--color-chart-2)" },
+      ]
+    : [];
+  const jenisTotal = jenisData.reduce((acc, j) => acc + j.value, 0);
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        title={`Selamat datang, ${user?.name?.split(" ")[0] ?? "Admin"}`}
+        description="Ringkasan eksekutif operasional pelaporan lapangan."
+        actions={
+          <Button asChild className="rounded-xl gradient-pln text-white">
+            <Link to="/laporan/create">
+              <Plus className="size-4 mr-2" />
+              Laporan Baru
+            </Link>
+          </Button>
+        }
+      />
+
+      {/* ── Row 1: KPI strip ───────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+        {isLoading
+          ? [1, 2, 3, 4, 5, 6].map((i) => (
+              <Card key={i} className="rounded-2xl shadow-soft border-border/60">
+                <CardContent className="p-5">
+                  <Skeleton className="h-10 w-10 rounded-xl" />
+                  <Skeleton className="h-8 w-20 mt-4" />
+                  <Skeleton className="h-4 w-24 mt-1" />
+                </CardContent>
+              </Card>
+            ))
+          : KPIS.map((k) => <KpiCard key={k.label} {...k} />)}
+      </div>
+
+      {/* ── Row 2: Tren 14 hari + Status Distribution ─────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <Card className="lg:col-span-2 rounded-2xl shadow-soft border-border/60">
+          <CardHeader>
+            <CardTitle className="text-base">Tren Laporan 14 Hari</CardTitle>
+            <p className="text-xs text-muted-foreground mt-1">Distribusi jenis laporan harian</p>
+          </CardHeader>
+          <CardContent>
+            {trendData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={280}>
+                <AreaChart data={trendData}>
+                  <defs>
+                    <linearGradient id="gA" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="var(--color-chart-1)" stopOpacity={0.4} />
+                      <stop offset="95%" stopColor="var(--color-chart-1)" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="gB" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="var(--color-chart-2)" stopOpacity={0.4} />
+                      <stop offset="95%" stopColor="var(--color-chart-2)" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="gC" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="var(--color-chart-3)" stopOpacity={0.4} />
+                      <stop offset="95%" stopColor="var(--color-chart-3)" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+                  <XAxis dataKey="day" stroke="var(--color-muted-foreground)" fontSize={11} />
+                  <YAxis
+                    stroke="var(--color-muted-foreground)"
+                    fontSize={11}
+                    allowDecimals={false}
+                  />
+                  <Tooltip contentStyle={CHART_TOOLTIP} />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  <Area
+                    type="monotone"
+                    dataKey="Awal"
+                    stackId="1"
+                    stroke="var(--color-chart-1)"
+                    fill="url(#gA)"
+                    strokeWidth={2}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="Akhir"
+                    stackId="1"
+                    stroke="var(--color-chart-2)"
+                    fill="url(#gB)"
+                    strokeWidth={2}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-[280px] flex items-center justify-center">
+                <ReportEmptyState
+                  title="Belum ada data tren"
+                  description="Data tren akan muncul saat tersedia"
+                  className="py-0"
+                />
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="rounded-2xl shadow-soft border-border/60">
+          <CardHeader>
+            <CardTitle className="text-base">Status Distribution</CardTitle>
+            <p className="text-xs text-muted-foreground">Total {s.totalReports || 0} laporan</p>
+          </CardHeader>
+          <CardContent>
+            {statusPie.length > 0 && statusPie.some((e) => e.value > 0) ? (
+              <>
+                <ResponsiveContainer width="100%" height={200}>
+                  <PieChart>
+                    <Pie
+                      data={statusPie}
+                      dataKey="value"
+                      nameKey="name"
+                      innerRadius={55}
+                      outerRadius={80}
+                      paddingAngle={2}
+                    >
+                      {statusPie.map((e) => (
+                        <Cell key={e.name} fill={STATUS_COLOR[e.name] ?? "#94a3b8"} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      contentStyle={CHART_TOOLTIP}
+                      formatter={(value: number, name: string) => [`${value} laporan`, name]}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="space-y-2 mt-2">
+                  {statusPie.map((st) => (
+                    <div key={st.name} className="flex items-center justify-between text-sm">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className="size-2.5 rounded-full"
+                          style={{ background: STATUS_COLOR[st.name] ?? "#94a3b8" }}
+                        />
+                        {st.name}
+                      </div>
+                      <span className="font-semibold tabular-nums">{st.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div className="h-[240px] flex items-center justify-center">
+                <ReportEmptyState
+                  title="Belum ada data status"
+                  description="Data status akan muncul saat tersedia"
+                  className="py-0"
+                />
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* ── Row 3: Reports by Jenis + Top Pekerjaan + Quick Actions ────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <Card className="rounded-2xl shadow-soft border-border/60">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Layers className="size-4 text-info" /> Reports by Jenis
+            </CardTitle>
+            <p className="text-xs text-muted-foreground">Total {jenisTotal} laporan</p>
+          </CardHeader>
+          <CardContent>
+            {byJenisQuery.isLoading ? (
+              <Skeleton className="h-[200px] w-full rounded-xl" />
+            ) : jenisTotal > 0 ? (
+              <>
+                <ResponsiveContainer width="100%" height={180}>
+                  <BarChart data={jenisData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+                    <XAxis dataKey="name" stroke="var(--color-muted-foreground)" fontSize={11} />
+                    <YAxis
+                      stroke="var(--color-muted-foreground)"
+                      fontSize={11}
+                      allowDecimals={false}
+                    />
+                    <Tooltip
+                      contentStyle={CHART_TOOLTIP}
+                      formatter={(v: number) => [`${v} laporan`, "Total"]}
+                    />
+                    <Bar dataKey="value" radius={[6, 6, 0, 0]}>
+                      {jenisData.map((j) => (
+                        <Cell key={j.name} fill={j.color} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+                <div className="grid grid-cols-3 gap-2 mt-2 text-center">
+                  {jenisData.map((j) => (
+                    <div key={j.name}>
+                      <div className="text-lg font-bold tabular-nums">{j.value}</div>
+                      <div className="text-[11px] text-muted-foreground">{j.name}</div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div className="h-[200px] flex items-center justify-center">
+                <ReportEmptyState
+                  title="Belum ada data jenis"
+                  description="Data per jenis akan muncul saat tersedia"
+                  className="py-0"
+                />
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="rounded-2xl shadow-soft border-border/60">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Briefcase className="size-4 text-primary" /> Top Pekerjaan
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {jobStats.length > 0 ? (
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={jobStats} layout="vertical" margin={{ left: 8, right: 16 }}>
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    stroke="var(--color-border)"
+                    horizontal={false}
+                  />
+                  <XAxis
+                    type="number"
+                    stroke="var(--color-muted-foreground)"
+                    fontSize={11}
+                    allowDecimals={false}
+                  />
+                  <YAxis
+                    type="category"
+                    dataKey="name"
+                    stroke="var(--color-muted-foreground)"
+                    fontSize={10}
+                    width={110}
+                    tickFormatter={(v: string) => (v.length > 16 ? `${v.slice(0, 16)}…` : v)}
+                  />
+                  <Tooltip
+                    contentStyle={CHART_TOOLTIP}
+                    formatter={(v: number) => [`${v} laporan`, "Jumlah"]}
+                  />
+                  <Bar dataKey="value" fill="var(--color-chart-1)" radius={[0, 6, 6, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-[220px] flex items-center justify-center">
+                <ReportEmptyState
+                  title="Belum ada statistik pekerjaan"
+                  description="Data pekerjaan akan muncul saat tersedia"
+                  className="py-0"
+                />
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="rounded-2xl shadow-soft border-border/60">
+          <CardHeader>
+            <CardTitle className="text-base">Quick Actions</CardTitle>
+          </CardHeader>
+          <CardContent className="grid grid-cols-2 gap-3">
+            {[
+              {
+                to: "/laporan-awal",
+                icon: FileText,
+                label: "Laporan Awal",
+                color: "bg-info/10 text-info",
+              },
+              {
+                to: "/laporan-akhir",
+                icon: FileCheck2,
+                label: "Laporan Akhir",
+                color: "bg-success/10 text-success",
+              },
+              {
+                to: "/history",
+                icon: Activity,
+                label: "History",
+                color: "bg-primary/10 text-primary",
+              },
+              {
+                to: "/laporan/create",
+                icon: Plus,
+                label: "Buat Laporan",
+                color: "bg-pln-yellow/20 text-pln-blue-dark",
+              },
+            ].map((q) => (
+              <Link
+                key={q.to}
+                to={q.to}
+                className="rounded-xl p-4 border border-border/60 hover:shadow-soft hover:border-primary/40 transition group"
+              >
+                <div
+                  className={`size-9 rounded-lg flex items-center justify-center mb-3 ${q.color}`}
+                >
+                  <q.icon className="size-4" />
+                </div>
+                <div className="text-sm font-semibold">{q.label}</div>
+                <div className="text-xs text-muted-foreground mt-0.5">Buka modul</div>
+              </Link>
+            ))}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* ── Row 4: Recent Reports + Recent Activity ───────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+        <Card className="lg:col-span-3 rounded-2xl shadow-soft border-border/60">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="text-base">Laporan Terkini</CardTitle>
+            <Button variant="ghost" size="sm" asChild>
+              <Link to="/history">Lihat semua</Link>
+            </Button>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="text-xs text-muted-foreground uppercase tracking-wider">
+                  <tr className="border-b border-border">
+                    <th className="text-left py-2 font-medium">ID</th>
+                    <th className="text-left py-2 font-medium">Jenis</th>
+                    <th className="text-left py-2 font-medium">Lokasi</th>
+                    <th className="text-left py-2 font-medium">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {isLoading ? (
+                    <tr>
+                      <td colSpan={4} className="py-4">
+                        <Skeleton className="h-20 w-full" />
+                      </td>
+                    </tr>
+                  ) : recent.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="py-0">
+                        <ReportEmptyState title="Belum ada laporan" className="py-8" />
+                      </td>
+                    </tr>
+                  ) : (
+                    recent.map((r) => (
+                      <tr key={r.id} className="border-b border-border/50 hover:bg-muted/30">
+                        <td className="py-3 font-mono text-xs">{r.reportId}</td>
+                        <td className="py-3">
+                          <ReportJenisBadge jenis={String(r.jenis)} />
+                        </td>
+                        <td className="py-3 max-w-[200px] truncate">
+                          {r.lokasi || r.pekerjaan || "-"}
+                        </td>
+                        <td className="py-3">
+                          <ReportStatusBadge status={r.status} />
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="lg:col-span-2 rounded-2xl shadow-soft border-border/60">
+          <CardHeader>
+            <CardTitle className="text-base">Recent Activity</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {activities.length === 0 ? (
+              <ReportEmptyState
+                title="Belum ada aktivitas"
+                description="Aktivitas terbaru akan muncul di sini"
+                className="py-8"
+              />
+            ) : (
+              activities.slice(0, 5).map((a: any) => (
+                <div
+                  key={a.id}
+                  className="flex items-start gap-3 pb-3 border-b border-border/50 last:border-0 last:pb-0"
+                >
+                  <div
+                    className={`size-2 rounded-full mt-2 ${a.action?.includes("approve") || a.action?.includes("success") ? "bg-success" : a.action?.includes("reject") ? "bg-destructive" : "bg-info"}`}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm">
+                      <span className="font-semibold">{a.user?.name || "User"}</span>{" "}
+                      {a.action || "melakukan aktivitas"}
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-0.5 font-mono">
+                      {a.entityType || "Laporan"} •{" "}
+                      {a.createdAt ? new Date(a.createdAt).toLocaleString("id-ID") : "-"}
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}

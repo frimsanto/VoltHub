@@ -1,0 +1,830 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { PageHeader } from "@/components/common";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Plus, Search, Pencil, Trash2, Loader2, KeyRound, Eye, EyeOff } from "lucide-react";
+import { useState, useEffect } from "react";
+import { showSuccess, showSuccessAuto, showError, showConfirm } from "@/lib/swal";
+import { requireRole } from "@/lib/route-guards";
+import { useAuthStore } from "@/stores/auth";
+import {
+  getUsers,
+  createUser,
+  updateUser,
+  deleteUser,
+  resetUserPassword,
+  type User,
+} from "@/lib/api/users";
+
+// Sentinel for the "Other" option in static selectors (distinct from any real name).
+const OTHER = "__OTHER__";
+// Static RTUPP choices for ADMIN_RTUPP accounts (Issue 1) — NOT sourced from the DB.
+const ADMIN_OPTIONS = ["RTUPP 2", "RTUPP 3", "RTUPP 4", "RTUPP 5"];
+// Static Team choices for PETUGAS (Issue 2).
+const TEAM_OPTIONS = ["Tim A", "Tim B"];
+
+// Map an existing name onto a static selector: a known option selects itself,
+// anything else falls back to "Other" + a custom free-text value.
+const toChoice = (
+  name: string | undefined,
+  options: string[],
+): { choice: string; custom: string } => {
+  if (name && options.includes(name)) return { choice: name, custom: "" };
+  if (name) return { choice: OTHER, custom: name };
+  return { choice: "", custom: "" };
+};
+
+// Resolve a selector (choice + custom text) back to the value to persist.
+const fromChoice = (choice: string, custom: string): string =>
+  choice === OTHER ? custom.trim() : choice;
+
+export const Route = createFileRoute("/_app/users")({
+  beforeLoad: () => {
+    requireRole(["admin_rtupp", "superadmin"]);
+  },
+  component: UserManagement,
+  head: () => ({ meta: [{ title: "User Management — VoltReport" }] }),
+});
+
+function UserManagement() {
+  const [q, setQ] = useState("");
+  const [role, setRole] = useState("all");
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  // rtuppId → PETUGAS RTUPP (DB dropdown). rtuppChoice/Custom → static ADMIN_RTUPP RTUPP.
+  // teamChoice/Custom → static PETUGAS Team selector.
+  const [newUser, setNewUser] = useState<{
+    name: string;
+    email: string;
+    phone: string;
+    role: "PETUGAS" | "ADMIN_RTUPP" | "ADMIN" | "SUPERADMIN";
+    rtuppId: string;
+    password: string;
+    rtuppChoice: string;
+    rtuppCustom: string;
+    teamChoice: string;
+    teamCustom: string;
+  }>({
+    name: "",
+    email: "",
+    phone: "",
+    role: "PETUGAS",
+    rtuppId: "",
+    password: "",
+    rtuppChoice: "",
+    rtuppCustom: "",
+    teamChoice: "",
+    teamCustom: "",
+  });
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [editUser, setEditUser] = useState<{
+    name: string;
+    phone: string;
+    rtuppChoice: string;
+    rtuppCustom: string;
+    teamChoice: string;
+    teamCustom: string;
+  }>({ name: "", phone: "", rtuppChoice: "", rtuppCustom: "", teamChoice: "", teamCustom: "" });
+  const [saving, setSaving] = useState(false);
+  // Password reset (admin_rtupp/superadmin acting on another user).
+  const [newPassword, setNewPassword] = useState("");
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [resettingPwd, setResettingPwd] = useState(false);
+
+  // Operator context drives which fields are editable / read-only.
+  const authUser = useAuthStore((s) => s.user);
+  const isSuperadmin = authUser?.role === "superadmin";
+  const isAdmin = authUser?.role === "admin_rtupp";
+
+  // Who may reset a given user's password: SUPERADMIN → anyone (except self);
+  // ADMIN_RTUPP → ADMIN & PETUGAS (RTUPP scope enforced server-side).
+  const canResetPassword = (target: User | null): boolean => {
+    if (!target || target.id === authUser?.id) return false;
+    if (isSuperadmin) return true;
+    if (isAdmin) return target.role === "ADMIN" || target.role === "PETUGAS";
+    return false;
+  };
+
+  // Role to create. ADMIN_RTUPP operators may only provision PETUGAS & ADMIN;
+  // SUPERADMIN may create any role.
+  const createRole = newUser.role;
+  const createIsPetugas = createRole === "PETUGAS";
+  // Only RTUPP-bound roles need an RTUPP. ADMIN_RTUPP & SUPERADMIN are global (no RTUPP).
+  const createNeedsRtupp = createRole === "PETUGAS" || createRole === "ADMIN";
+
+  const filtered = users.filter(
+    (u) =>
+      (role === "all" || u.role.toLowerCase() === role) &&
+      (q === "" ||
+        u.name.toLowerCase().includes(q.toLowerCase()) ||
+        u.email.toLowerCase().includes(q.toLowerCase())),
+  );
+
+  const fetchUsers = async () => {
+    setLoading(true);
+    try {
+      const data = await getUsers();
+      setUsers(data);
+    } catch (error) {
+      console.error("Failed to fetch users:", error);
+      showError("Error", "Gagal mengambil data user");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    // RTUPP and Team selectors are fully static now (Issues 1 & 2) — no DB
+    // dropdowns to preload; the user list is all that's needed.
+    fetchUsers();
+  }, []);
+
+  const handleCreateUser = async () => {
+    if (!newUser.name || !newUser.email || !newUser.password) {
+      showError("Validasi", "Nama, email, dan password wajib diisi");
+      return;
+    }
+
+    const role = createRole;
+    // RTUPP comes from the static selector for RTUPP-bound roles (PETUGAS, ADMIN).
+    const rtuppName = createNeedsRtupp ? fromChoice(newUser.rtuppChoice, newUser.rtuppCustom) : "";
+    // PETUGAS Team: free-text from the static selector ("Tim A" / "Tim B" / "Other").
+    const teamName = role === "PETUGAS" ? fromChoice(newUser.teamChoice, newUser.teamCustom) : "";
+
+    if (createNeedsRtupp && !rtuppName) {
+      showError("Validasi", "RTUPP wajib dipilih");
+      return;
+    }
+    if (role === "PETUGAS" && !teamName) {
+      showError("Validasi", "Team wajib dipilih untuk Petugas");
+      return;
+    }
+
+    try {
+      await createUser({
+        name: newUser.name,
+        email: newUser.email,
+        phone: newUser.phone,
+        password: newUser.password,
+        role,
+        rtuppName: rtuppName || undefined,
+        teamName: teamName || undefined,
+      });
+      showSuccessAuto("Berhasil", "User berhasil ditambahkan", 1200);
+      setIsAddDialogOpen(false);
+      setNewUser({
+        name: "",
+        email: "",
+        phone: "",
+        role: "PETUGAS",
+        rtuppId: "",
+        password: "",
+        rtuppChoice: "",
+        rtuppCustom: "",
+        teamChoice: "",
+        teamCustom: "",
+      });
+      fetchUsers();
+    } catch (error: any) {
+      showError("Error", error.message || "Gagal menambahkan user");
+    }
+  };
+
+  const handleEditClick = (user: User) => {
+    setSelectedUser(user);
+    const rtupp = toChoice(user.rtupp?.name, ADMIN_OPTIONS);
+    const team = toChoice(user.team?.name, TEAM_OPTIONS);
+    setEditUser({
+      name: user.name,
+      phone: user.phone ?? "",
+      rtuppChoice: rtupp.choice,
+      rtuppCustom: rtupp.custom,
+      teamChoice: team.choice,
+      teamCustom: team.custom,
+    });
+    setNewPassword("");
+    setShowNewPassword(false);
+    setIsEditDialogOpen(true);
+  };
+
+  const handleResetPassword = async () => {
+    if (!selectedUser) return;
+    if (newPassword.trim().length < 6) {
+      showError("Validasi", "Password minimal 6 karakter");
+      return;
+    }
+    setResettingPwd(true);
+    try {
+      await resetUserPassword(selectedUser.id, newPassword.trim());
+      showSuccessAuto(
+        "Berhasil",
+        "Password berhasil direset. User wajib menggantinya saat login berikutnya.",
+        1600,
+      );
+      setNewPassword("");
+      setShowNewPassword(false);
+    } catch (error: any) {
+      showError("Error", error.message || "Gagal mereset password");
+    } finally {
+      setResettingPwd(false);
+    }
+  };
+
+  const editIsPetugas = selectedUser?.role === "PETUGAS";
+  // Only ADMIN carries an editable RTUPP. ADMIN_RTUPP/SUPERADMIN are global (no RTUPP).
+  const editIsAdminRtupp = selectedUser?.role === "ADMIN";
+
+  const handleUpdateUser = async () => {
+    if (!selectedUser) return;
+    if (!editUser.name) {
+      showError("Validasi", "Nama wajib diisi");
+      return;
+    }
+
+    // PETUGAS: RTUPP immutable, Team editable (static). ADMIN: RTUPP editable (static).
+    const teamName = editIsPetugas ? fromChoice(editUser.teamChoice, editUser.teamCustom) : "";
+    const rtuppName = editIsAdminRtupp
+      ? fromChoice(editUser.rtuppChoice, editUser.rtuppCustom)
+      : "";
+
+    if (editIsPetugas && !teamName) {
+      showError("Validasi", "Team wajib dipilih untuk Petugas");
+      return;
+    }
+    if (editIsAdminRtupp && !rtuppName) {
+      showError("Validasi", "RTUPP wajib dipilih untuk Admin RTUPP");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await updateUser(selectedUser.id, {
+        name: editUser.name,
+        phone: editUser.phone,
+        ...(editIsPetugas ? { teamName } : {}),
+        ...(editIsAdminRtupp ? { rtuppName } : {}),
+      });
+      showSuccessAuto("Berhasil", "User berhasil diperbarui", 1200);
+      setIsEditDialogOpen(false);
+      setSelectedUser(null);
+      fetchUsers();
+    } catch (error: any) {
+      showError("Error", error.message || "Gagal memperbarui user");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleToggleActive = async (user: User) => {
+    const confirmed = await showConfirm(
+      "Konfirmasi",
+      `Apakah Anda yakin ingin ${user.isActive ? "menonaktifkan" : "mengaktifkan"} user ini?`,
+    );
+
+    if (confirmed) {
+      try {
+        await updateUser(user.id, { isActive: !user.isActive });
+        showSuccessAuto(
+          "Berhasil",
+          `User berhasil ${user.isActive ? "dinonaktifkan" : "diaktifkan"}`,
+          1200,
+        );
+        fetchUsers();
+      } catch (error: any) {
+        showError("Error", error.message || "Gagal mengubah status user");
+      }
+    }
+  };
+
+  const handleDeleteUser = async (user: User) => {
+    // Deactivation is the standard lifecycle workflow. Physical delete is only
+    // possible for users with zero historical records; the backend enforces this
+    // and returns 409 otherwise. The dialog steers toward deactivation.
+    const confirmed = await showConfirm(
+      "Deactivate User",
+      `Untuk menjaga riwayat data, pengguna sebaiknya dinonaktifkan, bukan dihapus. ` +
+        `Nonaktifkan user "${user.name}" sekarang? ` +
+        `(Penghapusan permanen hanya berlaku untuk user tanpa data historis.)`,
+    );
+
+    if (confirmed) {
+      try {
+        await deleteUser(user.id);
+        showSuccessAuto("Berhasil", "User berhasil dihapus", 1200);
+        fetchUsers();
+      } catch (error: any) {
+        // 409: user still has historical records → guide toward deactivation.
+        if (error?.response?.status === 409) {
+          showError(
+            "Tidak dapat dihapus",
+            "User memiliki data historis dan tidak dapat dihapus. Nonaktifkan user ini sebagai gantinya.",
+          );
+          return;
+        }
+        showError("Error", error.message || "Gagal menghapus user");
+      }
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        title="User Management"
+        description="Kelola akses dan akun pengguna sistem."
+        actions={
+          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="rounded-xl gradient-pln text-white">
+                <Plus className="size-4 mr-2" /> Tambah User
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Tambah User Baru</DialogTitle>
+              </DialogHeader>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="col-span-2">
+                  <Label>Nama</Label>
+                  <Input
+                    value={newUser.name}
+                    onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
+                    className="rounded-xl mt-1.5"
+                    placeholder="Nama lengkap"
+                  />
+                </div>
+                <div>
+                  <Label>Email</Label>
+                  <Input
+                    type="email"
+                    value={newUser.email}
+                    onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+                    className="rounded-xl mt-1.5"
+                    placeholder="email@pln.co.id"
+                  />
+                </div>
+                <div>
+                  <Label>Password</Label>
+                  <Input
+                    type="password"
+                    value={newUser.password}
+                    onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+                    className="rounded-xl mt-1.5"
+                    placeholder="Minimal 6 karakter"
+                  />
+                </div>
+                <div>
+                  <Label>No HP</Label>
+                  <Input
+                    value={newUser.phone}
+                    onChange={(e) => setNewUser({ ...newUser, phone: e.target.value })}
+                    className="rounded-xl mt-1.5"
+                    placeholder="08xxxxxxxxxx"
+                  />
+                </div>
+                <div>
+                  <Label>Role</Label>
+                  <Select
+                    value={newUser.role}
+                    onValueChange={(v) =>
+                      setNewUser({
+                        ...newUser,
+                        role: v as any,
+                        rtuppChoice: "",
+                        rtuppCustom: "",
+                        teamChoice: "",
+                        teamCustom: "",
+                      })
+                    }
+                  >
+                    <SelectTrigger className="rounded-xl mt-1.5">
+                      <SelectValue placeholder="Pilih role" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="PETUGAS">Petugas</SelectItem>
+                      <SelectItem value="ADMIN">Admin RTUPP</SelectItem>
+                      {/* ADMIN_RTUPP & SUPERADMIN hanya bisa dibuat oleh SUPERADMIN. */}
+                      {isSuperadmin && <SelectItem value="ADMIN_RTUPP">Admin</SelectItem>}
+                      {isSuperadmin && <SelectItem value="SUPERADMIN">Superadmin</SelectItem>}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {/* RTUPP: static selector untuk role yang terikat RTUPP (Petugas & Admin RTUPP).
+                    ADMIN_RTUPP & SUPERADMIN bersifat global → tanpa RTUPP. */}
+                {createNeedsRtupp && (
+                  <div>
+                    <Label>
+                      RTUPP <span className="text-destructive">*</span>
+                    </Label>
+                    <Select
+                      value={newUser.rtuppChoice}
+                      onValueChange={(v) =>
+                        setNewUser({
+                          ...newUser,
+                          rtuppChoice: v,
+                          rtuppCustom: v === OTHER ? newUser.rtuppCustom : "",
+                        })
+                      }
+                    >
+                      <SelectTrigger className="rounded-xl mt-1.5">
+                        <SelectValue placeholder="Pilih RTUPP" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {ADMIN_OPTIONS.map((o) => (
+                          <SelectItem key={o} value={o}>
+                            {o}
+                          </SelectItem>
+                        ))}
+                        <SelectItem value={OTHER}>Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {newUser.rtuppChoice === OTHER && (
+                      <Input
+                        value={newUser.rtuppCustom}
+                        onChange={(e) => setNewUser({ ...newUser, rtuppCustom: e.target.value })}
+                        className="rounded-xl mt-2"
+                        placeholder="Nama RTUPP"
+                      />
+                    )}
+                  </div>
+                )}
+                {/* Team: only PETUGAS, static choices (Issue 2). ADMIN_RTUPP has no team. */}
+                {createIsPetugas && (
+                  <div className="col-span-2">
+                    <Label>
+                      Team <span className="text-destructive">*</span>
+                    </Label>
+                    <Select
+                      value={newUser.teamChoice}
+                      onValueChange={(v) =>
+                        setNewUser({
+                          ...newUser,
+                          teamChoice: v,
+                          teamCustom: v === OTHER ? newUser.teamCustom : "",
+                        })
+                      }
+                    >
+                      <SelectTrigger className="rounded-xl mt-1.5">
+                        <SelectValue placeholder="Pilih Team" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {TEAM_OPTIONS.map((o) => (
+                          <SelectItem key={o} value={o}>
+                            {o}
+                          </SelectItem>
+                        ))}
+                        <SelectItem value={OTHER}>Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {newUser.teamChoice === OTHER && (
+                      <Input
+                        value={newUser.teamCustom}
+                        onChange={(e) => setNewUser({ ...newUser, teamCustom: e.target.value })}
+                        className="rounded-xl mt-2"
+                        placeholder="Nama Team"
+                      />
+                    )}
+                  </div>
+                )}
+              </div>
+              <Button
+                className="rounded-xl gradient-pln text-white mt-2"
+                onClick={handleCreateUser}
+              >
+                Simpan
+              </Button>
+            </DialogContent>
+          </Dialog>
+        }
+      />
+
+      <Card className="rounded-2xl shadow-soft border-border/60">
+        <CardContent className="p-4 flex flex-wrap items-center gap-3">
+          <div className="relative flex-1 min-w-[220px]">
+            <Search className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Cari nama atau email..."
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              className="pl-9 rounded-xl"
+            />
+          </div>
+          <Select value={role} onValueChange={setRole}>
+            <SelectTrigger className="w-[160px] rounded-xl">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Semua Role</SelectItem>
+              <SelectItem value="petugas">Petugas</SelectItem>
+              <SelectItem value="admin">Admin RTUPP</SelectItem>
+              <SelectItem value="admin_rtupp">Admin</SelectItem>
+              {/* SUPERADMIN hanya terlihat oleh sesama SUPERADMIN (hierarki visibilitas). */}
+              {isSuperadmin && <SelectItem value="superadmin">Superadmin</SelectItem>}
+            </SelectContent>
+          </Select>
+          <Badge variant="secondary" className="ml-auto rounded-full">
+            {filtered.length} user
+          </Badge>
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-2xl shadow-soft border-border/60 overflow-hidden">
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="size-8 animate-spin text-muted-foreground" />
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/50 text-xs uppercase tracking-wider text-muted-foreground">
+                <tr>
+                  <th className="text-left px-4 py-3 font-semibold">Nama</th>
+                  <th className="text-left px-4 py-3 font-semibold">Role</th>
+                  <th className="text-left px-4 py-3 font-semibold">RTUPP</th>
+                  <th className="text-left px-4 py-3 font-semibold">Team</th>
+                  <th className="text-left px-4 py-3 font-semibold">Dibuat</th>
+                  <th className="text-left px-4 py-3 font-semibold">Aktif</th>
+                  <th className="text-right px-4 py-3 font-semibold">Aksi</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((u) => (
+                  <tr key={u.id} className="border-t border-border/60 hover:bg-muted/30">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <Avatar className="size-8">
+                          <AvatarFallback className="text-xs bg-pln-blue text-primary-foreground">
+                            {u.name
+                              .split(" ")
+                              .map((n) => n[0])
+                              .slice(0, 2)
+                              .join("")}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <div className="font-medium">{u.name}</div>
+                          <div className="text-xs text-muted-foreground">{u.email}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <Badge variant="outline" className="capitalize">
+                        {u.role}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground text-xs">
+                      {u.rtupp?.name || "-"}
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground text-xs">
+                      {u.team?.name || "-"}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-muted-foreground">
+                      {new Date(u.createdAt).toLocaleDateString("id-ID")}
+                    </td>
+                    <td className="px-4 py-3">
+                      <Switch checked={u.isActive} onCheckedChange={() => handleToggleActive(u)} />
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="rounded-lg"
+                        aria-label={`Edit user ${u.name}`}
+                        onClick={() => handleEditClick(u)}
+                      >
+                        <Pencil className="size-4" />
+                      </Button>
+                      {/* SUPERADMIN account is singular & permanent — only updatable, never deletable. */}
+                      {u.role !== "SUPERADMIN" && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="rounded-lg text-destructive"
+                          aria-label={`Hapus user ${u.name}`}
+                          onClick={() => handleDeleteUser(u)}
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+                {filtered.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="text-center py-12 text-muted-foreground">
+                      Tidak ada user ditemukan
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+
+      <Dialog
+        open={isEditDialogOpen}
+        onOpenChange={(open) => {
+          setIsEditDialogOpen(open);
+          if (!open) setSelectedUser(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit User</DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="col-span-2">
+              <Label>Nama</Label>
+              <Input
+                value={editUser.name}
+                onChange={(e) => setEditUser({ ...editUser, name: e.target.value })}
+                className="rounded-xl mt-1.5"
+                placeholder="Nama lengkap"
+              />
+            </div>
+            <div className="col-span-2">
+              <Label>Email</Label>
+              <Input
+                value={selectedUser?.email ?? ""}
+                disabled
+                className="rounded-xl mt-1.5 bg-muted/50"
+              />
+            </div>
+            <div>
+              <Label>No HP</Label>
+              <Input
+                value={editUser.phone}
+                onChange={(e) => setEditUser({ ...editUser, phone: e.target.value })}
+                className="rounded-xl mt-1.5"
+                placeholder="08xxxxxxxxxx"
+              />
+            </div>
+            <div>
+              <Label>Role</Label>
+              <Input
+                value={selectedUser?.role ?? ""}
+                disabled
+                className="rounded-xl mt-1.5 bg-muted/50 capitalize"
+              />
+            </div>
+            {/* ADMIN: RTUPP editable (static). PETUGAS: RTUPP read-only (immutable).
+                ADMIN_RTUPP/SUPERADMIN: global, tanpa RTUPP. */}
+            {editIsAdminRtupp ? (
+              <div>
+                <Label>
+                  RTUPP <span className="text-destructive">*</span>
+                </Label>
+                <Select
+                  value={editUser.rtuppChoice}
+                  onValueChange={(v) =>
+                    setEditUser({
+                      ...editUser,
+                      rtuppChoice: v,
+                      rtuppCustom: v === OTHER ? editUser.rtuppCustom : "",
+                    })
+                  }
+                >
+                  <SelectTrigger className="rounded-xl mt-1.5">
+                    <SelectValue placeholder="Pilih RTUPP" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ADMIN_OPTIONS.map((o) => (
+                      <SelectItem key={o} value={o}>
+                        {o}
+                      </SelectItem>
+                    ))}
+                    <SelectItem value={OTHER}>Other</SelectItem>
+                  </SelectContent>
+                </Select>
+                {editUser.rtuppChoice === OTHER && (
+                  <Input
+                    value={editUser.rtuppCustom}
+                    onChange={(e) => setEditUser({ ...editUser, rtuppCustom: e.target.value })}
+                    className="rounded-xl mt-2"
+                    placeholder="Nama RTUPP"
+                  />
+                )}
+              </div>
+            ) : editIsPetugas ? (
+              <div>
+                <Label>RTUPP</Label>
+                <Input
+                  value={selectedUser?.rtupp?.name ?? "-"}
+                  disabled
+                  className="rounded-xl mt-1.5 bg-muted/50"
+                />
+              </div>
+            ) : null}
+            {/* Team: only PETUGAS, static choices (Issue 2). */}
+            {editIsPetugas && (
+              <div>
+                <Label>
+                  Team <span className="text-destructive">*</span>
+                </Label>
+                <Select
+                  value={editUser.teamChoice}
+                  onValueChange={(v) =>
+                    setEditUser({
+                      ...editUser,
+                      teamChoice: v,
+                      teamCustom: v === OTHER ? editUser.teamCustom : "",
+                    })
+                  }
+                >
+                  <SelectTrigger className="rounded-xl mt-1.5">
+                    <SelectValue placeholder="Pilih Team" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TEAM_OPTIONS.map((o) => (
+                      <SelectItem key={o} value={o}>
+                        {o}
+                      </SelectItem>
+                    ))}
+                    <SelectItem value={OTHER}>Other</SelectItem>
+                  </SelectContent>
+                </Select>
+                {editUser.teamChoice === OTHER && (
+                  <Input
+                    value={editUser.teamCustom}
+                    onChange={(e) => setEditUser({ ...editUser, teamCustom: e.target.value })}
+                    className="rounded-xl mt-2"
+                    placeholder="Nama Team"
+                  />
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Reset Password — SUPERADMIN: siapa saja; ADMIN_RTUPP: Admin RTUPP & Petugas (RTUPP sama) */}
+          {canResetPassword(selectedUser) && (
+            <div className="mt-3 pt-3 border-t border-border/60">
+              <Label className="flex items-center gap-1.5">
+                <KeyRound className="size-3.5" /> Reset Password
+              </Label>
+              <div className="flex gap-2 mt-1.5">
+                <div className="relative flex-1">
+                  <Input
+                    type={showNewPassword ? "text" : "password"}
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="rounded-xl pr-10"
+                    placeholder="Password baru (min 6 karakter)"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPassword((s) => !s)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                    aria-label="Tampilkan password"
+                  >
+                    {showNewPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                  </button>
+                </div>
+                <Button
+                  variant="outline"
+                  className="rounded-xl"
+                  onClick={handleResetPassword}
+                  disabled={resettingPwd || !newPassword}
+                >
+                  {resettingPwd ? <Loader2 className="size-4 animate-spin" /> : "Reset"}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                User akan diminta mengganti password ini saat login berikutnya.
+              </p>
+            </div>
+          )}
+
+          <Button
+            className="rounded-xl gradient-pln text-white mt-2"
+            onClick={handleUpdateUser}
+            disabled={saving}
+          >
+            {saving ? <Loader2 className="size-4 mr-2 animate-spin" /> : null}
+            Simpan Perubahan
+          </Button>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

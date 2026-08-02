@@ -1,0 +1,2614 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                          String               @id @default(uuid()) @db.VarChar(36)
+  email                       String               @unique(map: "email") @db.VarChar(255)
+  password                    String               @db.VarChar(255)
+  name                        String               @db.VarChar(255)
+  role                        UserRole?            @default(PETUGAS)
+  phone                       String?              @db.VarChar(50)
+  avatar                      String?              @db.VarChar(255)
+  isActive                    Boolean?             @default(true)
+  mustChangePassword          Boolean?             @default(false)
+  rtuppId                     String?              @db.VarChar(36)
+  teamId                      String?              @db.VarChar(36)
+  roleId                      String?              @db.VarChar(36)
+  createdAt                   DateTime?            @default(now()) @db.Timestamptz(0)
+  updatedAt                   DateTime?            @default(now()) @updatedAt @db.Timestamptz(0)
+  activityLogs                ActivityLog[]
+  attachments                 Attachment[]
+  laporanAkhirCreated         LaporanAkhir[]       @relation("LaporanAkhirCreatedBy")
+  laporanAkhirUpdated         LaporanAkhir[]       @relation("LaporanAkhirUpdatedBy")
+  laporanAkhirApproved        LaporanAkhir[]       @relation("LaporanAkhirApprovedBy")
+  laporanAkhirRejected        LaporanAkhir[]       @relation("LaporanAkhirRejectedBy")
+  laporanAwalCreated          LaporanAwal[]        @relation("LaporanAwalCreatedBy")
+  laporanAwalUpdated          LaporanAwal[]        @relation("LaporanAwalUpdatedBy")
+  laporanAwalApproved         LaporanAwal[]        @relation("LaporanAwalApprovedBy")
+  laporanAwalRejected         LaporanAwal[]        @relation("LaporanAwalRejectedBy")
+  validations                 ReportValidation[]
+  deviceTokens                DeviceToken[]
+  refreshTokens               RefreshToken[]
+  inspectionsAsInspector      Inspection[]         @relation("InspectionInspector")
+  teams_teams_leaderIdTousers Team[]               @relation("teams_leaderIdTousers")
+  rtupp                       RTUPP?               @relation(fields: [rtuppId], references: [id], onUpdate: Restrict, map: "users_ibfk_1")
+  team                        Team?                @relation(fields: [teamId], references: [id], onUpdate: Restrict, map: "users_ibfk_2")
+  // V2 additive: canonical role table bridge (legacy `role` enum kept until controller migration)
+  roleRef                     Role?                @relation(fields: [roleId], references: [id], onUpdate: Restrict, map: "users_role_fk")
+  auditLogs2                  AuditLog[]
+  assignedTickets             Ticket[]             @relation("TicketAssignee")
+  workflowTransitions         WorkflowTransition[] @relation("WorkflowTransitionPerformer")
+  notifications               Notification[]       @relation("UserNotifications")
+  workOrdersCreated           WorkOrder[]          @relation("WorkOrderCreatedBy")
+  workOrdersApproved          WorkOrder[]          @relation("WorkOrderApprovedBy")
+  workOrdersRejected          WorkOrder[]          @relation("WorkOrderRejectedBy")
+  laporanGiReports            LaporanGi[]          @relation("LaporanGiInspector")
+  laporanHarGiReports         LaporanHarGi[]       @relation("LaporanHarGiInspector")
+  laporanInspeksiGhReports    LaporanInspeksiGh[]  @relation("LaporanInspeksiGhInspector")
+  laporanHarGhReports         LaporanHarGh[]       @relation("LaporanHarGhInspector")
+  laporanInspeksiMpReports    LaporanInspeksiMp[]  @relation("LaporanInspeksiMpInspector")
+  laporanHarMpReports         LaporanHarMp[]       @relation("LaporanHarMpInspector")
+  scadaSnapshots              ScadaSnapshot[]
+
+  @@index([email], map: "idx_user_email")
+  @@index([role], map: "idx_user_role")
+  @@index([rtuppId], map: "idx_user_rtupp")
+  @@index([teamId], map: "idx_user_team")
+  @@index([roleId], map: "idx_user_role_id")
+  @@map("users")
+}
+
+model DeviceToken {
+  id        String    @id @default(uuid()) @db.VarChar(36)
+  userId    String    @db.VarChar(36)
+  token     String    @unique(map: "token") @db.VarChar(512)
+  platform  String?   @db.VarChar(20)
+  createdAt DateTime? @default(now()) @db.Timestamptz(0)
+  updatedAt DateTime? @default(now()) @updatedAt @db.Timestamptz(0)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "device_tokens_ibfk_1")
+
+  @@index([userId], map: "idx_device_token_user")
+  @@map("device_tokens")
+}
+
+// Server-side refresh-token store enabling revocation + rotation.
+// One row per issued refresh token. `tokenHash` is the SHA-256 of the JWT (the
+// raw token is never stored). `familyId` groups every token produced by rotation
+// from a single login (a "session"); revoking a family logs out that device, and
+// presenting an already-rotated (revoked) token triggers family-wide revocation
+// as a reuse/compromise defence.
+model RefreshToken {
+  id           String    @id @default(uuid()) @db.VarChar(36)
+  userId       String    @db.VarChar(36)
+  tokenHash    String    @unique(map: "token_hash") @db.VarChar(64)
+  familyId     String    @db.VarChar(36)
+  expiresAt    DateTime  @db.Timestamptz(0)
+  revokedAt    DateTime? @db.Timestamptz(0)
+  replacedById String?   @db.VarChar(36)
+  userAgent    String?
+  ipAddress    String?   @db.VarChar(100)
+  createdAt    DateTime  @default(now()) @db.Timestamptz(0)
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "refresh_tokens_ibfk_1")
+
+  @@index([userId], map: "idx_refresh_token_user")
+  @@index([familyId], map: "idx_refresh_token_family")
+  @@map("refresh_tokens")
+}
+
+model RTUPP {
+  id             String        @id @default(uuid()) @db.VarChar(36)
+  code           String        @unique(map: "uq_rtupp_code") @db.VarChar(50)
+  name           String        @db.VarChar(255)
+  region         String?       @db.VarChar(255)
+  address        String?
+  phone          String?       @db.VarChar(50)
+  isActive       Boolean?      @default(true)
+  organizationId String?       @db.VarChar(36)
+  createdAt      DateTime?     @default(now()) @db.Timestamptz(0)
+  updatedAt      DateTime?     @default(now()) @updatedAt @db.Timestamptz(0)
+  teams          Team[]
+  users          User[]
+  personil       Personil[]
+  // V2 additive: organization tree wiring
+  organization   Organization? @relation(fields: [organizationId], references: [id], onUpdate: Restrict, map: "rtupps_organization_fk")
+  up3s           Up3[]
+  // Tenant ownership of operational sites (gardu). See Location.rtuppId.
+  locations      Location[]
+
+  @@index([code], map: "idx_rtupp_code")
+  @@index([organizationId], map: "idx_rtupp_organization")
+  @@map("rtupps")
+}
+
+model Personil {
+  id        String    @id @default(uuid()) @db.VarChar(36)
+  nip       String    @unique(map: "nip") @db.VarChar(50)
+  nama      String    @db.VarChar(255)
+  jabatan   String    @db.VarChar(255)
+  rtuppId   String    @db.VarChar(36)
+  isActive  Boolean   @default(true)
+  createdAt DateTime? @default(now()) @db.Timestamptz(0)
+  updatedAt DateTime? @default(now()) @updatedAt @db.Timestamptz(0)
+  rtupp     RTUPP     @relation(fields: [rtuppId], references: [id], onUpdate: Restrict, map: "personil_ibfk_1")
+
+  @@index([rtuppId], map: "idx_personil_rtupp")
+  @@index([isActive], map: "idx_personil_active")
+  @@index([nip], map: "idx_personil_nip")
+  @@map("personil")
+}
+
+model Team {
+  id                          String      @id @default(uuid()) @db.VarChar(36)
+  name                        String      @db.VarChar(255)
+  code                        String      @unique(map: "uq_team_code") @db.VarChar(50)
+  rtuppId                     String      @db.VarChar(36)
+  leaderId                    String?     @db.VarChar(36)
+  isActive                    Boolean?    @default(true)
+  createdAt                   DateTime?   @default(now()) @db.Timestamptz(0)
+  updatedAt                   DateTime?   @default(now()) @updatedAt @db.Timestamptz(0)
+  rtupp                       RTUPP       @relation(fields: [rtuppId], references: [id], onUpdate: Restrict, map: "teams_ibfk_1")
+  users_teams_leaderIdTousers User?       @relation("teams_leaderIdTousers", fields: [leaderId], references: [id], onUpdate: Restrict, map: "teams_ibfk_2")
+  members                     User[]
+  workOrders                  WorkOrder[]
+
+  @@index([code], map: "idx_team_code")
+  @@index([rtuppId], map: "idx_team_rtupp")
+  @@index([leaderId], map: "leaderId")
+  @@map("teams")
+}
+
+model LaporanAwal {
+  id                 String   @id @default(uuid()) @db.VarChar(36)
+  reportId           String   @unique(map: "uq_laporan_awal_reportId") @db.VarChar(50)
+  hari               String   @db.VarChar(50)
+  tanggal            DateTime @db.Date
+  nomorSPJ           String   @db.VarChar(100)
+  up3                String   @db.VarChar(255)
+  pekerjaan          String
+  lokasiGardu        String   @db.VarChar(255)
+  pelaksana          String   @db.VarChar(255)
+  penanggungJawab    String   @db.VarChar(255)
+  pengawasPekerjaan  String?  @db.VarChar(255)
+  pengawasManuver    String?  @db.VarChar(255)
+  pengawasK3         String?  @db.VarChar(255)
+  nomorWP            String?  @db.VarChar(100)
+  potensiBahaya      String
+  pengendalianRisiko String
+  apd                String?  @db.VarChar(255)
+  rambuKerja         String?  @db.VarChar(255)
+  asuransiTK         String?  @db.VarChar(255)
+
+  // Safety Checklist (K3) persistence
+  wpJsahirarcSop          Boolean? @default(false)
+  kondisiPersonil         String?  @default("SEHAT") @db.VarChar(50)
+  potensiBahayaDijelaskan Boolean? @default(false)
+  apdLengkap              Boolean? @default(false)
+  asuransiKetenagakerjaan Boolean? @default(false)
+  berdoaSebelumBekerja    Boolean? @default(false)
+
+  // Personil Snapshot (audit trail, immutable copy at submit time)
+  jumlahPersonil   Int?  @default(0)
+  personilSnapshot Json?
+
+  // ADDITIVE: Work Order link (laporan lahir dari WO). Nullable → legacy reports OK.
+  workOrderId String? @db.VarChar(36)
+
+  // ADDITIVE: kondisi perangkat checklist (Laporan Awal)
+  cekRelay    ChecklistCondition?
+  cekRC       ChecklistCondition?
+  cekLR       ChecklistCondition?
+  cekES       ChecklistCondition?
+  cekStatusCB ChecklistCondition?
+
+  // New status system
+  status       ReportStatus @default(DRAFT)
+  revisionNote String?
+  submittedAt  DateTime?    @db.Timestamptz(0)
+  approvedAt   DateTime?    @db.Timestamptz(0)
+  rejectedAt   DateTime?    @db.Timestamptz(0)
+  approvedById String?      @db.VarChar(36)
+  rejectedById String?      @db.VarChar(36)
+  updatedById  String?      @db.VarChar(36)
+
+  // Legacy status for backward compatibility
+  legacyStatus laporan_awal_status? @default(DRAFT)
+
+  createdById   String             @db.VarChar(36)
+  createdAt     DateTime?          @default(now()) @db.Timestamptz(0)
+  updatedAt     DateTime?          @default(now()) @updatedAt @db.Timestamptz(0)
+  activityLogs  ActivityLog[]
+  attachments   Attachment[]
+  createdBy     User               @relation("LaporanAwalCreatedBy", fields: [createdById], references: [id], onUpdate: Restrict, map: "laporan_awal_ibfk_1")
+  laporan_akhir LaporanAkhir?
+  workOrder     WorkOrder?         @relation(fields: [workOrderId], references: [id], onUpdate: Restrict, map: "laporan_awal_wo_fk")
+  validations   ReportValidation[]
+  updatedBy     User?              @relation("LaporanAwalUpdatedBy", fields: [updatedById], references: [id], onUpdate: Restrict, map: "laporan_awal_ibfk_2")
+  approvedBy    User?              @relation("LaporanAwalApprovedBy", fields: [approvedById], references: [id], onUpdate: Restrict, map: "laporan_awal_ibfk_3")
+  rejectedBy    User?              @relation("LaporanAwalRejectedBy", fields: [rejectedById], references: [id], onUpdate: Restrict, map: "laporan_awal_ibfk_4")
+
+  @@index([createdById], map: "idx_laporan_awal_createdBy")
+  @@index([reportId], map: "idx_laporan_awal_reportId")
+  @@index([status], map: "idx_laporan_awal_status")
+  @@index([workOrderId], map: "idx_laporan_awal_wo")
+  @@index([tanggal], map: "idx_laporan_awal_tanggal")
+  // Perf audit: dashboard "today"/14-day trend, KPI monthly trend and history
+  // ordering all range/sort on createdAt — previously a full scan.
+  @@index([createdAt], map: "idx_laporan_awal_created")
+  // Perf audit: history/rekap filter by status THEN order by createdAt — a
+  // composite lets MySQL satisfy the predicate and the sort from one index.
+  @@index([status, createdAt], map: "idx_laporan_awal_status_created")
+  @@map("laporan_awal")
+}
+
+model LaporanAkhir {
+  id                   String                         @id @default(uuid()) @db.VarChar(36)
+  reportId             String                         @unique(map: "uq_laporan_akhir_reportId") @db.VarChar(50)
+  laporanAwalId        String?                        @unique(map: "uq_laporan_akhir_laporanAwalId") @db.VarChar(36)
+  nomorSPJ             String                         @db.VarChar(100)
+  tanggalSelesai       DateTime                       @db.Date
+  up3                  String                         @db.VarChar(255)
+  pekerjaan            String
+  namaAset             String                         @db.VarChar(255)
+  tagSCADA             String?                        @db.VarChar(100)
+  bayPosisi            String?                        @db.VarChar(100)
+  teganganNominal      String?                        @db.VarChar(50)
+  detailLangkah        String
+  hasilTahananIsolasi  String?                        @db.VarChar(100)
+  hasilPengukuranBeban String?                        @db.VarChar(100)
+  catatanHasil         String?
+  statusPekerjaan      laporan_akhir_statusPekerjaan? @default(SELESAI)
+  durasiPekerjaan      String?                        @db.VarChar(100)
+  catatanTambahan      String?
+  status               ReportStatus?                  @default(DRAFT)
+
+  // ADDITIVE: Work Order link
+  workOrderId String? @db.VarChar(36)
+
+  // ADDITIVE: hasil uji remote (Laporan Akhir checklist)
+  hasilRC          WorkResult?
+  hasilLR          WorkResult?
+  hasilES          WorkResult?
+  statusCB         CbStatus?
+  penyebab         String?
+  tindakan         String?
+  rekomendasi      String?
+  // Operational SCADA fields
+  gardu            String?                         @db.VarChar(255)
+  jenisPekerjaan   String?                         @db.VarChar(255)
+  asdu             String?                         @db.VarChar(20)
+  ipModem          String?                         @db.VarChar(50)
+  ipRTU            String?                         @db.VarChar(50)
+  ipSIM1           String?                         @db.VarChar(50)
+  ipSIM2           String?                         @db.VarChar(50)
+  ipGTWIconPlus    String?                         @db.VarChar(50)
+  ipWAN            String?                         @db.VarChar(50)
+  rtuNama          String?                         @db.VarChar(255)
+  rtuType          String?                         @db.VarChar(100)
+  mediaNama        String?                         @db.VarChar(255)
+  mediaType        String?                         @db.VarChar(100)
+  rectifierNama    String?                         @db.VarChar(255)
+  rectifierType    String?                         @db.VarChar(100)
+  bateraiNama      String?                         @db.VarChar(255)
+  bateraiType      String?                         @db.VarChar(100)
+  catatanRTU       laporan_akhir_catatanPerangkat?
+  catatanMedia     laporan_akhir_catatanPerangkat?
+  catatanRectifier laporan_akhir_catatanPerangkat?
+  catatanBaterai   laporan_akhir_catatanBaterai?
+  catatanLain      String?
+  statusSebelum    laporan_akhir_statusGardu?
+  statusSesudah    laporan_akhir_statusGardu?
+  pengawas         String?                         @db.VarChar(255)
+  pelaksana        String?                         @db.VarChar(255)
+  createdById      String                          @db.VarChar(36)
+  createdAt        DateTime?                       @default(now()) @db.Timestamptz(0)
+  updatedAt        DateTime?                       @default(now()) @updatedAt @db.Timestamptz(0)
+  updatedById      String?                         @db.VarChar(36)
+  submittedAt      DateTime?                       @db.Timestamptz(0)
+  approvedAt       DateTime?                       @db.Timestamptz(0)
+  rejectedAt       DateTime?                       @db.Timestamptz(0)
+  approvedById     String?                         @db.VarChar(36)
+  rejectedById     String?                         @db.VarChar(36)
+  validatedAt      DateTime?                       @db.Timestamptz(0)
+  activityLogs     ActivityLog[]
+  attachments      Attachment[]
+  createdBy        User                            @relation("LaporanAkhirCreatedBy", fields: [createdById], references: [id], onUpdate: Restrict, map: "laporan_akhir_ibfk_1")
+  laporan_awal     LaporanAwal?                    @relation(fields: [laporanAwalId], references: [id], onUpdate: Restrict, map: "laporan_akhir_ibfk_2")
+  workOrder        WorkOrder?                      @relation(fields: [workOrderId], references: [id], onUpdate: Restrict, map: "laporan_akhir_wo_fk")
+  validations      ReportValidation[]
+  updatedBy        User?                           @relation("LaporanAkhirUpdatedBy", fields: [updatedById], references: [id], onUpdate: Restrict, map: "laporan_akhir_ibfk_3")
+  approvedBy       User?                           @relation("LaporanAkhirApprovedBy", fields: [approvedById], references: [id], onUpdate: Restrict, map: "laporan_akhir_ibfk_4")
+  rejectedBy       User?                           @relation("LaporanAkhirRejectedBy", fields: [rejectedById], references: [id], onUpdate: Restrict, map: "laporan_akhir_ibfk_5")
+
+  @@index([createdById], map: "idx_laporan_akhir_createdBy")
+  @@index([reportId], map: "idx_laporan_akhir_reportId")
+  @@index([status], map: "idx_laporan_akhir_status")
+  @@index([workOrderId], map: "idx_laporan_akhir_wo")
+  // Perf audit: parity with laporan_awal — createdAt drives dashboard/KPI
+  // trends and history sort; (status, createdAt) covers filter-then-sort.
+  @@index([createdAt], map: "idx_laporan_akhir_created")
+  @@index([status, createdAt], map: "idx_laporan_akhir_status_created")
+  // Perf audit: rekap-akhir defaults to ORDER BY tanggalSelesai DESC + range
+  // filtering on it; was previously unindexed (full scan + filesort).
+  @@index([tanggalSelesai], map: "idx_laporan_akhir_tanggal_selesai")
+  @@map("laporan_akhir")
+}
+
+model Attachment {
+  id             String               @id @default(uuid()) @db.VarChar(36)
+  originalName   String               @db.VarChar(255)
+  fileName       String               @db.VarChar(255)
+  mimeType       String               @db.VarChar(100)
+  size           Int
+  path           String               @db.VarChar(500)
+  laporanAwalId  String?              @db.VarChar(36)
+  laporanAkhirId String?              @db.VarChar(36)
+  category       attachments_category
+  uploadedById   String               @db.VarChar(36)
+  uploadedAt     DateTime?            @default(now()) @db.Timestamptz(0)
+  laporanAwal    LaporanAwal?         @relation(fields: [laporanAwalId], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "attachments_ibfk_1")
+  laporanAkhir   LaporanAkhir?        @relation(fields: [laporanAkhirId], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "attachments_ibfk_2")
+  users          User                 @relation(fields: [uploadedById], references: [id], onUpdate: Restrict, map: "attachments_ibfk_4")
+
+  @@index([category], map: "idx_attachment_category")
+  @@index([laporanAkhirId], map: "idx_attachment_laporan_akhir")
+  @@index([laporanAwalId], map: "idx_attachment_laporan_awal")
+  @@index([uploadedById], map: "uploadedById")
+  @@map("attachments")
+}
+
+model ReportValidation {
+  id             String           @id @default(uuid()) @db.VarChar(36)
+  laporanAwalId  String?          @db.VarChar(36)
+  laporanAkhirId String?          @db.VarChar(36)
+  validatorId    String           @db.VarChar(36)
+  status         ValidationAction
+  notes          String?
+  validatedAt    DateTime?        @default(now()) @db.Timestamptz(0)
+  laporanAwal    LaporanAwal?     @relation(fields: [laporanAwalId], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "report_validations_ibfk_1")
+  laporanAkhir   LaporanAkhir?    @relation(fields: [laporanAkhirId], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "report_validations_ibfk_2")
+  validator      User             @relation(fields: [validatorId], references: [id], onUpdate: Restrict, map: "report_validations_ibfk_4")
+
+  @@index([validatedAt], map: "idx_validation_date")
+  @@index([laporanAkhirId], map: "idx_validation_laporan_akhir")
+  @@index([laporanAwalId], map: "idx_validation_laporan_awal")
+  @@index([validatorId], map: "idx_validation_validator")
+  @@map("report_validations")
+}
+
+model ActivityLog {
+  id             String                   @id @default(uuid()) @db.VarChar(36)
+  userId         String                   @db.VarChar(36)
+  action         ActivityAction
+  entityType     activity_logs_entityType
+  entityId       String?                  @db.VarChar(36)
+  laporanAwalId  String?                  @db.VarChar(36)
+  laporanAkhirId String?                  @db.VarChar(36)
+  details        String?
+  ipAddress      String?                  @db.VarChar(100)
+  userAgent      String?
+  createdAt      DateTime?                @default(now()) @db.Timestamptz(0)
+  user           User                     @relation(fields: [userId], references: [id], onUpdate: Restrict, map: "activity_logs_ibfk_1")
+  laporanAwal    LaporanAwal?             @relation(fields: [laporanAwalId], references: [id], onUpdate: Restrict, map: "activity_logs_ibfk_2")
+  laporanAkhir   LaporanAkhir?            @relation(fields: [laporanAkhirId], references: [id], onUpdate: Restrict, map: "activity_logs_ibfk_3")
+
+  @@index([action], map: "idx_log_action")
+  @@index([createdAt], map: "idx_log_created")
+  @@index([entityType], map: "idx_log_entity_type")
+  @@index([userId], map: "idx_log_user")
+  @@index([laporanAkhirId], map: "laporanAkhirId")
+  @@index([laporanAwalId], map: "idx_activity_logs_laporanAwalId")
+  @@map("activity_logs")
+}
+
+enum UserRole {
+  // VoltHub canonical 4-role hierarchy. MASTER (system owner) and MANAGER
+  // (read-only full access) are additive; the legacy values are retained so
+  // existing rows/tokens keep working and are normalized in src/auth/roles.ts:
+  //   SUPERADMIN → MASTER, ADMIN_RTUPP → ADMIN.
+  MASTER
+  MANAGER
+  SUPERADMIN
+  ADMIN
+  ADMIN_RTUPP
+  PETUGAS
+  // NOC — control-room operator. Not RTUPP-bound (rtuppId null, like MASTER).
+  // Uploads the daily Siemens SP7 SCADA exports and reads the SCADA/GIS
+  // monitoring surface; no laporan approval, user management, or WO access.
+  NOC
+}
+
+// ============================================================
+// VoltReport V2 — Asset Management Domain (Sprint 1)
+// Additive to the existing MySQL schema. Follows V1 conventions:
+// VarChar(36) UUID PK, DateTime(0) audit columns, soft delete.
+// Spec: TDD_DATABASE_VoltReport_V2.md / PRISMA_SCHEMA_VoltReport_V2.md
+// ============================================================
+
+enum LocationType {
+  GI
+  GH
+  GARDU
+}
+
+enum AssetType {
+  RTU
+  FDI
+  RECTIFIER
+  BATTERY_BANK
+  ROUTER
+  MODEM
+  RADIO
+}
+
+enum AssetStatus {
+  ACTIVE
+  WARNING
+  DAMAGED
+  RETIRED
+}
+
+enum CommunicationMediaType {
+  GSM_4G
+  GSM_2G
+  RADIO_DATA
+  FO
+  ICON_GSM
+  ICON_IPVPN
+}
+
+enum InspectionStatus {
+  NORMAL
+  WARNING
+  CRITICAL
+}
+
+enum HarStatus {
+  NORMAL
+  WARNING
+  CRITICAL
+  OFFLINE
+}
+
+enum DocumentType {
+  PHOTO
+  BERITA_ACARA
+  MANUAL_BOOK
+  SERTIFIKAT
+  INSPECTION_DOC
+  OTHER
+}
+
+model Location {
+  id           String       @id @default(uuid()) @db.VarChar(36)
+  code         String       @unique(map: "uq_location_code") @db.VarChar(50)
+  name         String       @db.VarChar(255)
+  locationType LocationType
+  up3          String?      @db.VarChar(150)
+  address      String?
+  latitude     Float?       @db.DoublePrecision
+  longitude    Float?       @db.DoublePrecision
+  status       Boolean      @default(true)
+  createdAt    DateTime     @default(now()) @db.Timestamptz(0)
+  updatedAt    DateTime     @default(now()) @updatedAt @db.Timestamptz(0)
+  createdBy    String?      @db.VarChar(36)
+  updatedBy    String?      @db.VarChar(36)
+  deletedAt    DateTime?    @db.Timestamptz(0)
+
+  // The penyulang (feeder) that SUPPLIES this gardu. Distinct from `feeders`
+  // (penyulang REGISTERED at this location, e.g. a GH's outgoing penyulang):
+  // a distribution gardu is fed by exactly one upstream penyulang. Source: the
+  // "GD" sheet (gardu distribusi → penyulang). ADDITIVE / nullable.
+  supplyFeederId String? @db.VarChar(36)
+
+  // Tenant key (ADDITIVE / nullable). The operational domain (assets, inspections,
+  // HAR, tickets, documents, performance) roots at Location, so this FK is the
+  // single tenant boundary for RTUPP/UP3 data isolation: ADMIN/PETUGAS are scoped
+  // to their own RTUPP's locations, MASTER/MANAGER see all. The legacy free-text
+  // `up3` column is a ULP sub-area label (one level BELOW RTUPP) and is NOT a
+  // tenant key — it is left untouched. Backfilled to the owning RTUPP on migration.
+  rtuppId String? @db.VarChar(36)
+
+  feeders              Feeder[]
+  assets               Asset[]
+  communicationMedia   CommunicationMedia[]
+  inspections          Inspection[]
+  harReports           HarReport[]
+  documents            Document[]
+  generatedReports     GeneratedReport[]
+  // V2 additive: Gardu-centric operational tables attach to the de-facto Site (locations)
+  performanceRecords   PerformanceDaily[]
+  tickets              Ticket[]
+  siteGeometries       SiteGeometry[]
+  bays                 Bay[]
+  workOrders           WorkOrder[]
+  laporanGi            LaporanGi[]
+  laporanHarGi         LaporanHarGi[]
+  laporanInspeksiGh    LaporanInspeksiGh[]
+  laporanHarGh         LaporanHarGh[]
+  laporanInspeksiMp    LaporanInspeksiMp[]
+  laporanHarMp         LaporanHarMp[]
+  inspeksiGarduRecords InspeksiGarduRecord[]
+  harGarduRecords      HarGarduRecord[]
+  scadaRtuRows         ScadaRtuRow[]
+  supplyFeeder         Feeder?               @relation("GarduSupplyFeeder", fields: [supplyFeederId], references: [id], onUpdate: Restrict, map: "locations_supply_feeder_fk")
+  rtupp                RTUPP?                @relation(fields: [rtuppId], references: [id], onUpdate: Restrict, map: "locations_rtupp_fk")
+
+  @@index([code], map: "idx_locations_code")
+  @@index([locationType], map: "idx_locations_type")
+  @@index([up3], map: "idx_locations_up3")
+  @@index([supplyFeederId], map: "idx_locations_supply_feeder")
+  // Tenant isolation: scoped reads/writes filter on rtuppId (or location.rtuppId
+  // for the operational tables) — index turns the per-request scope predicate
+  // into a range scan instead of a full table scan over 14k+ gardu.
+  @@index([rtuppId], map: "idx_locations_rtupp")
+  // Perf audit: GIS viewport queries push the map bbox to SQL as a
+  // (latitude, longitude) range — composite index turns the per-pan full
+  // table scan into an index range scan over on-screen sites only.
+  @@index([latitude, longitude], map: "idx_locations_geo")
+  @@map("locations")
+}
+
+model Feeder {
+  id         String    @id @default(uuid()) @db.VarChar(36)
+  locationId String    @db.VarChar(36)
+  bayId      String?   @db.VarChar(36) // ADDITIVE: GI → Bay → Penyulang
+  feederCode String    @db.VarChar(50)
+  feederName String    @db.VarChar(255)
+  createdAt  DateTime  @default(now()) @db.Timestamptz(0)
+  updatedAt  DateTime  @default(now()) @updatedAt @db.Timestamptz(0)
+  createdBy  String?   @db.VarChar(36)
+  updatedBy  String?   @db.VarChar(36)
+  deletedAt  DateTime? @db.Timestamptz(0)
+
+  location          Location            @relation(fields: [locationId], references: [id], onUpdate: Restrict, map: "feeders_location_fk")
+  bay               Bay?                @relation(fields: [bayId], references: [id], onUpdate: Restrict, map: "feeders_bay_fk")
+  assets            Asset[]
+  workOrders        WorkOrder[]
+  laporanGi         LaporanGi[]
+  laporanHarGi      LaporanHarGi[]
+  laporanInspeksiGh LaporanInspeksiGh[]
+  laporanHarGh      LaporanHarGh[]
+  laporanInspeksiMp LaporanInspeksiMp[]
+  laporanHarMp      LaporanHarMp[]
+  // Distribution gardu supplied by this penyulang (inverse of Location.supplyFeeder).
+  suppliedGardu     Location[]          @relation("GarduSupplyFeeder")
+
+  @@unique([locationId, feederCode], map: "uq_feeder_location_code")
+  @@index([locationId], map: "idx_feeders_location")
+  @@index([bayId], map: "idx_feeders_bay")
+  @@map("feeders")
+}
+
+model Asset {
+  id            String      @id @default(uuid()) @db.VarChar(36)
+  locationId    String      @db.VarChar(36)
+  feederId      String?     @db.VarChar(36)
+  bayId         String?     @db.VarChar(36) // ADDITIVE: GI → Bay → Asset
+  parentAssetId String?     @db.VarChar(36)
+  assetTypeId   String?     @db.VarChar(36)
+  assetType     AssetType
+  assetCode     String      @unique(map: "uq_asset_code") @db.VarChar(100)
+  assetName     String      @db.VarChar(255)
+  brand         String?     @db.VarChar(150)
+  model         String?     @db.VarChar(150)
+  serialNumber  String?     @unique(map: "uq_asset_serial") @db.VarChar(150)
+  tahunOperasi  Int?
+  status        AssetStatus @default(ACTIVE)
+  notes         String?
+
+  // RTU specific
+  protocol    String? @db.VarChar(100)
+  asdu        String? @db.VarChar(100)
+  linkAddress String? @db.VarChar(100)
+  pairChannel String? @db.VarChar(100)
+  masterIp1   String? @db.VarChar(50)
+  masterIp2   String? @db.VarChar(50)
+
+  // Live SCADA state (ADDITIVE — fed by periodic IFS export ingestion).
+  // Deliberately SEPARATE from `status` (the asset lifecycle enum): `status`
+  // describes the asset's registry state (ACTIVE/DAMAGED/…) and is edited by
+  // humans, whereas these describe the *current communication state* reported
+  // by the master station and are overwritten on every import (snapshot, not
+  // history — the time-series of changes lives in telemetry_values).
+  // `scadaRtuName` is the stable correlation key to the SCADA `RTU Name`.
+  scadaRtuName       String?   @db.VarChar(100)
+  operState          String?   @db.VarChar(20) // UP / DOWN
+  adminState         String?   @db.VarChar(20) // ON / OFF
+  commLastSeenAt     DateTime? @db.Timestamptz(0) // last export this RTU appeared in
+  commStateChangedAt DateTime? @db.Timestamptz(0) // when operState last transitioned
+
+  // Battery specific
+  batteryCount Int?
+  capacity     String? @db.VarChar(100)
+
+  createdAt DateTime  @default(now()) @db.Timestamptz(0)
+  updatedAt DateTime  @default(now()) @updatedAt @db.Timestamptz(0)
+  createdBy String?   @db.VarChar(36)
+  updatedBy String?   @db.VarChar(36)
+  deletedAt DateTime? @db.Timestamptz(0)
+
+  location     Location       @relation(fields: [locationId], references: [id], onUpdate: Restrict, map: "assets_location_fk")
+  feeder       Feeder?        @relation(fields: [feederId], references: [id], onUpdate: Restrict, map: "assets_feeder_fk")
+  bay          Bay?           @relation(fields: [bayId], references: [id], onUpdate: Restrict, map: "assets_bay_fk")
+  parentAsset  Asset?         @relation("AssetHierarchy", fields: [parentAssetId], references: [id], onUpdate: Restrict, map: "assets_parent_fk")
+  children     Asset[]        @relation("AssetHierarchy")
+  workOrders   WorkOrder[]
+  laporanHarGi LaporanHarGi[]
+  simCards     AssetSimCard[]
+  // V2 additive: bridge to taxonomy reference table (legacy `assetType` enum kept)
+  assetTypeRef AssetTypeRef?  @relation(fields: [assetTypeId], references: [id], onUpdate: Restrict, map: "assets_asset_type_fk")
+
+  inspectionFindings InspectionFinding[]
+  inspectionPhotos   InspectionPhoto[]
+  harDetails         HarDetail[]
+  documents          Document[]
+
+  @@index([assetType], map: "idx_assets_type")
+  @@index([locationId], map: "idx_assets_location")
+  @@index([feederId], map: "idx_assets_feeder")
+  @@index([bayId], map: "idx_assets_bay")
+  @@index([parentAssetId], map: "idx_assets_parent")
+  @@index([status], map: "idx_assets_status")
+  @@index([assetTypeId], map: "idx_assets_asset_type")
+  // Live monitoring: correlation key for SCADA ingestion + filtering DOWN RTUs.
+  @@index([scadaRtuName], map: "idx_assets_scada_rtu_name")
+  @@index([operState], map: "idx_assets_oper_state")
+  @@map("assets")
+}
+
+model AssetSimCard {
+  id          String   @id @default(uuid()) @db.VarChar(36)
+  assetId     String   @db.VarChar(36)
+  simSlot     Int
+  provider    String?  @db.VarChar(100)
+  phoneNumber String?  @db.VarChar(50)
+  iccid       String?  @db.VarChar(100)
+  ipAddress   String?  @db.VarChar(50)
+  createdAt   DateTime @default(now()) @db.Timestamptz(0)
+  updatedAt   DateTime @default(now()) @updatedAt @db.Timestamptz(0)
+  createdBy   String?  @db.VarChar(36)
+  updatedBy   String?  @db.VarChar(36)
+
+  asset Asset @relation(fields: [assetId], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "sim_cards_asset_fk")
+
+  @@unique([assetId, simSlot], map: "uq_sim_asset_slot")
+  @@index([assetId], map: "idx_sim_asset")
+  @@map("asset_sim_cards")
+}
+
+model CommunicationMedia {
+  id         String                 @id @default(uuid()) @db.VarChar(36)
+  locationId String                 @db.VarChar(36)
+  mediaType  CommunicationMediaType
+  provider   String?                @db.VarChar(150)
+  status     Boolean                @default(true)
+  notes      String?
+  createdAt  DateTime               @default(now()) @db.Timestamptz(0)
+  updatedAt  DateTime               @default(now()) @updatedAt @db.Timestamptz(0)
+  createdBy  String?                @db.VarChar(36)
+  updatedBy  String?                @db.VarChar(36)
+  deletedAt  DateTime?              @db.Timestamptz(0)
+
+  location Location @relation(fields: [locationId], references: [id], onUpdate: Restrict, map: "comm_media_location_fk")
+
+  @@index([locationId], map: "idx_comm_media_location")
+  @@index([mediaType], map: "idx_comm_media_type")
+  @@map("communication_media")
+}
+
+// ============================================================
+// VoltReport V2 — Inspection domain (Sprint 2)
+// Additive. Spec: TDD §6.6–6.8 / PRISMA §11–13.
+// ============================================================
+
+model Inspection {
+  id             String   @id @default(uuid()) @db.VarChar(36)
+  locationId     String   @db.VarChar(36)
+  inspectionDate DateTime @db.Date
+  inspectorId    String   @db.VarChar(36)
+  notes          String?
+  createdAt      DateTime @default(now()) @db.Timestamptz(0)
+  updatedAt      DateTime @default(now()) @updatedAt @db.Timestamptz(0)
+  createdBy      String?  @db.VarChar(36)
+  updatedBy      String?  @db.VarChar(36)
+
+  location  Location            @relation(fields: [locationId], references: [id], onUpdate: Restrict, map: "inspections_location_fk")
+  inspector User                @relation("InspectionInspector", fields: [inspectorId], references: [id], onUpdate: Restrict, map: "inspections_inspector_fk")
+  findings  InspectionFinding[]
+
+  @@index([locationId], map: "idx_inspections_location")
+  @@index([inspectionDate], map: "idx_inspections_date")
+  @@index([inspectorId], map: "idx_inspections_inspector")
+  @@map("inspections")
+}
+
+model InspectionFinding {
+  id             String           @id @default(uuid()) @db.VarChar(36)
+  inspectionId   String           @db.VarChar(36)
+  assetId        String           @db.VarChar(36)
+  status         InspectionStatus
+  finding        String?
+  recommendation String?
+  createdAt      DateTime         @default(now()) @db.Timestamptz(0)
+  updatedAt      DateTime         @default(now()) @updatedAt @db.Timestamptz(0)
+  createdBy      String?          @db.VarChar(36)
+  updatedBy      String?          @db.VarChar(36)
+
+  inspection Inspection        @relation(fields: [inspectionId], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "findings_inspection_fk")
+  asset      Asset             @relation(fields: [assetId], references: [id], onUpdate: Restrict, map: "findings_asset_fk")
+  photos     InspectionPhoto[]
+
+  @@index([inspectionId], map: "idx_findings_inspection")
+  @@index([assetId], map: "idx_findings_asset")
+  @@index([status], map: "idx_findings_status")
+  @@map("inspection_findings")
+}
+
+model InspectionPhoto {
+  id        String   @id @default(uuid()) @db.VarChar(36)
+  findingId String   @db.VarChar(36)
+  assetId   String   @db.VarChar(36)
+  photoUrl  String
+  caption   String?  @db.VarChar(255)
+  createdAt DateTime @default(now()) @db.Timestamptz(0)
+  updatedAt DateTime @default(now()) @updatedAt @db.Timestamptz(0)
+  createdBy String?  @db.VarChar(36)
+  updatedBy String?  @db.VarChar(36)
+
+  finding InspectionFinding @relation(fields: [findingId], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "photos_finding_fk")
+  asset   Asset             @relation(fields: [assetId], references: [id], onUpdate: Restrict, map: "photos_asset_fk")
+
+  @@index([findingId], map: "idx_photos_finding")
+  @@index([assetId], map: "idx_photos_asset")
+  @@map("inspection_photos")
+}
+
+// ============================================================
+// VoltReport V2 — HAR domain (Sprint 3)
+// Additive. Spec: TDD §6.9–6.10 / PRISMA §14–15.
+// ============================================================
+
+model HarReport {
+  id         String   @id @default(uuid()) @db.VarChar(36)
+  locationId String   @db.VarChar(36)
+  reportDate DateTime @db.Date
+  createdAt  DateTime @default(now()) @db.Timestamptz(0)
+  updatedAt  DateTime @default(now()) @updatedAt @db.Timestamptz(0)
+  createdBy  String?  @db.VarChar(36)
+  updatedBy  String?  @db.VarChar(36)
+
+  location Location    @relation(fields: [locationId], references: [id], onUpdate: Restrict, map: "har_reports_location_fk")
+  details  HarDetail[]
+
+  @@index([locationId], map: "idx_har_reports_location")
+  @@index([reportDate], map: "idx_har_reports_date")
+  @@map("har_reports")
+}
+
+model HarDetail {
+  id          String    @id @default(uuid()) @db.VarChar(36)
+  harReportId String    @db.VarChar(36)
+  assetId     String    @db.VarChar(36)
+  status      HarStatus
+  analysis    String?
+  notes       String?
+  createdAt   DateTime  @default(now()) @db.Timestamptz(0)
+  updatedAt   DateTime  @default(now()) @updatedAt @db.Timestamptz(0)
+  createdBy   String?   @db.VarChar(36)
+  updatedBy   String?   @db.VarChar(36)
+
+  harReport HarReport @relation(fields: [harReportId], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "har_details_report_fk")
+  asset     Asset     @relation(fields: [assetId], references: [id], onUpdate: Restrict, map: "har_details_asset_fk")
+
+  @@unique([harReportId, assetId], map: "uq_har_detail_report_asset")
+  @@index([harReportId], map: "idx_har_details_report")
+  @@index([assetId], map: "idx_har_details_asset")
+  @@index([status], map: "idx_har_details_status")
+  @@map("har_details")
+}
+
+// ============================================================
+// VoltReport V2 — Documents & Reports domain (Sprint 4)
+// Additive. Spec: TDD §6.11–6.12 / PRISMA §16–17.
+// ============================================================
+
+model Document {
+  id           String       @id @default(uuid()) @db.VarChar(36)
+  locationId   String?      @db.VarChar(36)
+  assetId      String?      @db.VarChar(36)
+  documentType DocumentType
+  documentName String       @db.VarChar(255)
+  fileUrl      String
+  createdAt    DateTime     @default(now()) @db.Timestamptz(0)
+  updatedAt    DateTime     @default(now()) @updatedAt @db.Timestamptz(0)
+  createdBy    String?      @db.VarChar(36)
+  updatedBy    String?      @db.VarChar(36)
+  deletedAt    DateTime?    @db.Timestamptz(0)
+
+  location Location? @relation(fields: [locationId], references: [id], onUpdate: Restrict, map: "documents_location_fk")
+  asset    Asset?    @relation(fields: [assetId], references: [id], onUpdate: Restrict, map: "documents_asset_fk")
+
+  @@index([locationId], map: "idx_documents_location")
+  @@index([assetId], map: "idx_documents_asset")
+  @@index([documentType], map: "idx_documents_type")
+  @@map("documents")
+}
+
+model GeneratedReport {
+  id           String   @id @default(uuid()) @db.VarChar(36)
+  locationId   String?  @db.VarChar(36)
+  reportNumber String   @db.VarChar(100)
+  reportType   String   @db.VarChar(50)
+  pdfUrl       String
+  generatedBy  String?  @db.VarChar(36)
+  generatedAt  DateTime @default(now()) @db.Timestamptz(0)
+
+  // Enterprise Report Generator (additive). `format` PDF | EXCEL.
+  // `sourceType` LAPORAN_AWAL | LAPORAN_AKHIR | INSPECTION | HAR.
+  format        String  @default("PDF") @db.VarChar(10)
+  sourceType    String? @db.VarChar(30)
+  sourceId      String? @db.VarChar(36)
+  version       Int     @default(1)
+  title         String? @db.VarChar(255)
+  templateKey   String? @db.VarChar(50)
+  fileSize      Int?
+  downloadCount Int     @default(0)
+
+  location  Location?        @relation(fields: [locationId], references: [id], onUpdate: Restrict, map: "generated_reports_location_fk")
+  downloads ReportDownload[]
+  signature ReportSignature?
+
+  @@index([locationId], map: "idx_generated_reports_location")
+  @@index([reportType], map: "idx_generated_reports_type")
+  @@index([sourceType, sourceId], map: "idx_generated_reports_source")
+  @@index([format], map: "idx_generated_reports_format")
+  @@map("generated_reports")
+}
+
+/// Digital Signature for a generated report (Digital Signature module).
+/// Ed25519-signed, QR-embedded, offline-verifiable proof of authenticity &
+/// integrity. One immutable signature per generated artifact. The compact
+/// `token` (payload.signature) is what the QR encodes; `contentHash` is the
+/// signed semantic digest, `fileHash` the rendered-bytes digest for tamper
+/// detection. Spec: docs/DIGITAL_SIGNATURE.md.
+model ReportSignature {
+  id           String @id @default(uuid()) @db.VarChar(36)
+  reportId     String @unique @db.VarChar(36)
+  reportNumber String @db.VarChar(100)
+  sourceType   String @db.VarChar(30)
+  sourceId     String @db.VarChar(36)
+  version      Int    @default(1)
+
+  algorithm   String @default("Ed25519") @db.VarChar(20)
+  keyId       String @db.VarChar(64)
+  contentHash String @db.VarChar(64)
+  fileHash    String @db.VarChar(64)
+  signature   String
+  payload     String
+  token       String
+  verifyUrl   String
+
+  issuer     String  @db.VarChar(255)
+  signedBy   String? @db.VarChar(36)
+  signerName String? @db.VarChar(150)
+
+  // Lifecycle. VALID until explicitly revoked (e.g. superseded / erroneous).
+  status        String    @default("VALID") @db.VarChar(20)
+  revokedAt     DateTime? @db.Timestamptz(0)
+  revokedBy     String?   @db.VarChar(36)
+  revokedReason String?   @db.VarChar(255)
+
+  // Verification telemetry.
+  verifyCount    Int       @default(0)
+  lastVerifiedAt DateTime? @db.Timestamptz(0)
+
+  signedAt DateTime @default(now()) @db.Timestamptz(0)
+
+  report GeneratedReport @relation(fields: [reportId], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "report_signatures_report_fk")
+
+  @@index([reportNumber], map: "idx_report_signatures_number")
+  @@index([sourceType, sourceId], map: "idx_report_signatures_source")
+  @@index([status], map: "idx_report_signatures_status")
+  @@map("report_signatures")
+}
+
+/// Download-history audit trail for generated reports (who fetched what, when).
+model ReportDownload {
+  id           String   @id @default(uuid()) @db.VarChar(36)
+  reportId     String   @db.VarChar(36)
+  downloadedBy String?  @db.VarChar(36)
+  ipAddress    String?  @db.VarChar(45)
+  downloadedAt DateTime @default(now()) @db.Timestamptz(0)
+
+  report GeneratedReport @relation(fields: [reportId], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "report_downloads_report_fk")
+
+  @@index([reportId], map: "idx_report_downloads_report")
+  @@index([downloadedAt], map: "idx_report_downloads_at")
+  @@map("report_downloads")
+}
+
+// ============================================================
+// VoltReport V2 — Import Engine domain (Sprint 5)
+// Additive. Spec: TDD §6.13–6.14 / PRISMA §18–19.
+// status (VARCHAR per TDD): PENDING | PROCESSING | SUCCESS | FAILED
+// ============================================================
+
+model ImportJob {
+  id          String    @id @default(uuid()) @db.VarChar(36)
+  fileName    String    @db.VarChar(255)
+  fileUrl     String?
+  importType  String    @default("ASSET") @db.VarChar(50)
+  totalRows   Int       @default(0)
+  successRows Int       @default(0)
+  failedRows  Int       @default(0)
+  status      String    @default("PENDING") @db.VarChar(50)
+  startedAt   DateTime? @db.Timestamptz(0)
+  finishedAt  DateTime? @db.Timestamptz(0)
+  createdBy   String?   @db.VarChar(36)
+  createdAt   DateTime  @default(now()) @db.Timestamptz(0)
+
+  errors ImportError[]
+
+  @@index([status], map: "idx_import_jobs_status")
+  @@index([createdBy], map: "idx_import_jobs_creator")
+  @@map("import_jobs")
+}
+
+model ImportError {
+  id           String   @id @default(uuid()) @db.VarChar(36)
+  importJobId  String   @db.VarChar(36)
+  rowNumber    Int
+  errorMessage String
+  rawData      Json?
+  createdAt    DateTime @default(now()) @db.Timestamptz(0)
+
+  importJob ImportJob @relation(fields: [importJobId], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "import_errors_job_fk")
+
+  @@index([importJobId], map: "idx_import_errors_job")
+  @@map("import_errors")
+}
+
+enum ValidationAction {
+  APPROVED
+  REJECTED
+  REVISION_REQUESTED
+}
+
+enum ActivityAction {
+  CREATE
+  UPDATE
+  DELETE
+  SUBMIT
+  VALIDATE
+  REJECT
+  EXPORT
+  LOGIN
+  LOGOUT
+  DOWNLOAD
+}
+
+enum activity_logs_entityType {
+  USER
+  LAPORAN_AWAL
+  LAPORAN_AKHIR
+  RTUPP
+  TEAM
+  ATTACHMENT
+}
+
+enum attachments_category {
+  FOTO_SEBELUM
+  FOTO_BRIEFING
+  FOTO_APD
+  FOTO_PEKERJAAN
+  FOTO_HASIL
+  LOGGER_FILE
+  SLD_FILE
+}
+
+// Canonical Report Status Enum — shared by LaporanAwal and LaporanAkhir
+enum ReportStatus {
+  DRAFT
+  PENDING
+  APPROVED
+  REJECTED
+  REVISED
+}
+
+// Legacy enum retained only for the unused LaporanAwal.legacyStatus column.
+// Not referenced by any application code; safe to drop in a future migration.
+enum laporan_awal_status {
+  DRAFT
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum laporan_akhir_statusPekerjaan {
+  SELESAI
+  PARSIAL
+  GAGAL
+}
+
+enum laporan_akhir_catatanPerangkat {
+  NORMAL
+  RUSAK
+}
+
+enum laporan_akhir_catatanBaterai {
+  NORMAL
+  HATI_HATI
+  RUSAK
+}
+
+enum laporan_akhir_statusGardu {
+  APPDISK
+  GAGAL_RC
+  OOP
+  INSCAN
+  BERHASIL_RC
+  LAIN_LAIN
+}
+
+// ============================================================
+// VoltHub V2 — Gardu-Centric Domain (Phase 1, ADDITIVE)
+// Source of truth: docs/05_ERD.md, docs/10_DATA_DICTIONARY.md,
+// docs/11_BUSINESS_RULES.md.
+//
+// MySQL in-place, additive only: NO table renamed or dropped.
+// New operational tables (performance_daily, tickets, site_geometries,
+// telemetry_*) attach to the existing `locations` table — the current
+// de-facto Gardu/Site store. The physical column `locationId` here is
+// the future `site_id`; it is renamed when locations→sites in the
+// full-restructure phase. The legacy `UserRole` / `AssetType` enums are
+// intentionally retained (36 files depend on them) so the build stays
+// green; the approved roles live in the new `roles` table and the asset
+// taxonomy lives in `asset_categories`/`asset_types`. Enum→table cutover
+// is deferred to the controller-migration phase.
+// ============================================================
+
+model Organization {
+  id        String   @id @default(uuid()) @db.VarChar(36)
+  code      String   @unique(map: "uq_organization_code") @db.VarChar(50)
+  name      String   @db.VarChar(255)
+  createdAt DateTime @default(now()) @db.Timestamptz(0)
+  updatedAt DateTime @default(now()) @updatedAt @db.Timestamptz(0)
+
+  rtupps RTUPP[]
+
+  @@index([code], map: "idx_organizations_code")
+  @@map("organizations")
+}
+
+model Up3 {
+  id        String   @id @default(uuid()) @db.VarChar(36)
+  rtuppId   String   @db.VarChar(36)
+  code      String   @db.VarChar(50)
+  name      String   @db.VarChar(255)
+  createdAt DateTime @default(now()) @db.Timestamptz(0)
+  updatedAt DateTime @default(now()) @updatedAt @db.Timestamptz(0)
+
+  rtupp RTUPP @relation(fields: [rtuppId], references: [id], onUpdate: Restrict, map: "up3s_rtupp_fk")
+
+  @@unique([rtuppId, code], map: "uq_up3_rtupp_code")
+  @@index([rtuppId], map: "idx_up3s_rtupp")
+  @@map("up3s")
+}
+
+// Approved roles (docs/07): SUPER_ADMIN, ADMIN, PETUGAS — seeded as rows.
+model Role {
+  id          String   @id @default(uuid()) @db.VarChar(36)
+  name        String   @unique(map: "uq_role_name") @db.VarChar(50)
+  description String?  @db.VarChar(255)
+  createdAt   DateTime @default(now()) @db.Timestamptz(0)
+  updatedAt   DateTime @default(now()) @updatedAt @db.Timestamptz(0)
+
+  users User[]
+
+  @@map("roles")
+}
+
+model AssetCategory {
+  id          String   @id @default(uuid()) @db.VarChar(36)
+  name        String   @unique(map: "uq_asset_category_name") @db.VarChar(100)
+  description String?  @db.VarChar(255)
+  createdAt   DateTime @default(now()) @db.Timestamptz(0)
+  updatedAt   DateTime @default(now()) @updatedAt @db.Timestamptz(0)
+
+  assetTypes AssetTypeRef[]
+
+  @@map("asset_categories")
+}
+
+// Named *Ref to avoid collision with the existing `AssetType` enum.
+model AssetTypeRef {
+  id              String   @id @default(uuid()) @db.VarChar(36)
+  assetCategoryId String   @db.VarChar(36)
+  name            String   @db.VarChar(100)
+  description     String?  @db.VarChar(255)
+  createdAt       DateTime @default(now()) @db.Timestamptz(0)
+  updatedAt       DateTime @default(now()) @updatedAt @db.Timestamptz(0)
+
+  category AssetCategory @relation(fields: [assetCategoryId], references: [id], onUpdate: Restrict, map: "asset_types_category_fk")
+  assets   Asset[]
+
+  @@unique([assetCategoryId, name], map: "uq_asset_type_category_name")
+  @@index([assetCategoryId], map: "idx_asset_types_category")
+  @@map("asset_types")
+}
+
+// One record per Gardu per date (BR-012). performanceStatus: 1=Berhasil, 0=Gagal.
+// score range 0-100 (Data Dictionary). Yearly partitioning is a PostgreSQL
+// target feature (ERD §7); deferred until the PG migration.
+model PerformanceDaily {
+  id                String   @id @default(uuid()) @db.VarChar(36)
+  locationId        String   @db.VarChar(36)
+  performanceDate   DateTime @db.Date
+  performanceStatus Int
+  score             Int?
+  createdAt         DateTime @default(now()) @db.Timestamptz(0)
+
+  location Location @relation(fields: [locationId], references: [id], onUpdate: Restrict, map: "performance_daily_location_fk")
+
+  @@unique([locationId, performanceDate], map: "uq_performance_location_date")
+  @@index([locationId], map: "idx_performance_location")
+  @@index([performanceDate], map: "idx_performance_date")
+  @@map("performance_daily")
+}
+
+model Ticket {
+  id           String         @id @default(uuid()) @db.VarChar(36)
+  locationId   String         @db.VarChar(36)
+  ticketNumber String         @unique(map: "uq_ticket_number") @db.VarChar(100)
+  category     String?        @db.VarChar(100)
+  priority     TicketPriority @default(MEDIUM)
+  status       TicketStatus   @default(OPEN)
+  assignedTo   String?        @db.VarChar(36)
+  notes        String?
+  openedAt     DateTime?      @db.Timestamptz(0)
+  closedAt     DateTime?      @db.Timestamptz(0)
+  createdAt    DateTime       @default(now()) @db.Timestamptz(0)
+  updatedAt    DateTime       @default(now()) @updatedAt @db.Timestamptz(0)
+  deletedAt    DateTime?      @db.Timestamptz(0)
+
+  location Location @relation(fields: [locationId], references: [id], onUpdate: Restrict, map: "tickets_location_fk")
+  assignee User?    @relation("TicketAssignee", fields: [assignedTo], references: [id], onUpdate: Restrict, map: "tickets_assignee_fk")
+
+  @@index([locationId], map: "idx_tickets_location")
+  @@index([status], map: "idx_tickets_status")
+  @@index([priority], map: "idx_tickets_priority")
+  @@index([assignedTo], map: "idx_tickets_assignee")
+  // Perf audit: ticket list defaults to ORDER BY createdAt DESC — previously
+  // an unindexed filesort once the (indexed) status/priority filters narrowed.
+  @@index([createdAt], map: "idx_tickets_created")
+  @@map("tickets")
+}
+
+// Canonical audit trail (ERD §11). Immutable by policy (BR-018). Retention >= 5y.
+// Distinct from the legacy `activity_logs` table, which is retained for V1.
+model AuditLog {
+  id          String      @id @default(uuid()) @db.VarChar(36)
+  entityType  String      @db.VarChar(100)
+  entityId    String      @db.VarChar(36)
+  action      AuditAction
+  oldValue    String?
+  newValue    String?
+  performedBy String?     @db.VarChar(36)
+  performedAt DateTime    @default(now()) @db.Timestamptz(0)
+
+  performer User? @relation(fields: [performedBy], references: [id], onUpdate: Restrict, map: "audit_logs_performer_fk")
+
+  @@index([entityType], map: "idx_audit_logs_entity_type")
+  @@index([entityId], map: "idx_audit_logs_entity_id")
+  @@index([performedBy], map: "idx_audit_logs_performer")
+  @@index([performedAt], map: "idx_audit_logs_performed_at")
+  @@map("audit_logs")
+}
+
+// Reserved — GIS integration (ERD §13). geometry stored as GeoJSON/WKT text.
+model SiteGeometry {
+  id         String   @id @default(uuid()) @db.VarChar(36)
+  locationId String   @db.VarChar(36)
+  geometry   String?
+  createdAt  DateTime @default(now()) @db.Timestamptz(0)
+
+  location Location @relation(fields: [locationId], references: [id], onUpdate: Restrict, map: "site_geometries_location_fk")
+
+  @@index([locationId], map: "idx_site_geometries_location")
+  @@map("site_geometries")
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum TicketStatus {
+  OPEN
+  ASSIGNED
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  STATUS_CHANGE
+}
+
+// ============================================================
+// Enterprise Approval Workflow (ADDITIVE — backward compatible)
+//
+// A generic, entity-agnostic approval state machine. It does NOT replace the
+// legacy `ReportStatus` columns on laporan_awal / laporan_akhir — those keep
+// working untouched. Instead a workflow is *attached* to any entity by
+// (entityType, entityId); the canonical current state lives in
+// `workflow_instances` and every state change is recorded immutably in
+// `workflow_transitions` (actor, role, from/to, comment, reason, timestamp).
+//
+// Lifecycle: DRAFT → SUBMITTED → REVIEWED → APPROVED → CLOSED
+//            with REVISION_REQUIRED and REJECTED branches.
+// Spec: docs/APPROVAL_WORKFLOW.md
+// ============================================================
+
+enum WorkflowState {
+  DRAFT
+  SUBMITTED
+  REVIEWED
+  REVISION_REQUIRED
+  APPROVED
+  REJECTED
+  CLOSED
+}
+
+model WorkflowInstance {
+  id           String        @id @default(uuid()) @db.VarChar(36)
+  entityType   String        @db.VarChar(100)
+  entityId     String        @db.VarChar(36)
+  currentState WorkflowState @default(DRAFT)
+  createdBy    String?       @db.VarChar(36)
+  createdAt    DateTime      @default(now()) @db.Timestamptz(0)
+  updatedAt    DateTime      @default(now()) @updatedAt @db.Timestamptz(0)
+
+  transitions WorkflowTransition[]
+
+  @@unique([entityType, entityId], map: "uq_workflow_entity")
+  @@index([entityType], map: "idx_workflow_entity_type")
+  @@index([currentState], map: "idx_workflow_state")
+  @@map("workflow_instances")
+}
+
+// Immutable append-only transition log (one row per state change). Records the
+// acting user, their role at action time, the action name, from/to states, an
+// optional approval comment and an optional rejection/revision reason.
+model WorkflowTransition {
+  id              String         @id @default(uuid()) @db.VarChar(36)
+  instanceId      String         @db.VarChar(36)
+  entityType      String         @db.VarChar(100)
+  entityId        String         @db.VarChar(36)
+  action          String         @db.VarChar(50)
+  fromState       WorkflowState?
+  toState         WorkflowState
+  performedBy     String?        @db.VarChar(36)
+  performedByRole String?        @db.VarChar(50)
+  comment         String?
+  reason          String?
+  performedAt     DateTime       @default(now()) @db.Timestamptz(0)
+
+  instance  WorkflowInstance @relation(fields: [instanceId], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "workflow_transitions_instance_fk")
+  performer User?            @relation("WorkflowTransitionPerformer", fields: [performedBy], references: [id], onUpdate: Restrict, map: "workflow_transitions_performer_fk")
+
+  @@index([instanceId], map: "idx_workflow_tx_instance")
+  @@index([entityType, entityId], map: "idx_workflow_tx_entity")
+  @@index([performedBy], map: "idx_workflow_tx_performer")
+  @@index([performedAt], map: "idx_workflow_tx_performed_at")
+  @@map("workflow_transitions")
+}
+
+// ── Real-Time Notification System (ADDITIVE) ────────────────────────────────
+// Two tables decouple the *what* (a per-user notification = the in-app inbox +
+// read state + history) from the *how* (per-channel delivery attempts = the
+// queue + retry log). The `notifications` row is created synchronously inside
+// the triggering request (best-effort); `notification_deliveries` rows are
+// drained asynchronously by the in-process queue worker (notification.queue.ts).
+// Spec: docs/NOTIFICATION_SYSTEM.md
+
+// The seven canonical trigger events (TASK §"Trigger Events").
+enum NotificationType {
+  TASK_ASSIGNED
+  REPORT_SUBMITTED
+  REPORT_APPROVED
+  REPORT_REJECTED
+  REVISION_REQUESTED
+  TICKET_CREATED
+  TICKET_CLOSED
+}
+
+enum NotificationDeliveryStatus {
+  PENDING // queued, awaiting the worker
+  PROCESSING // claimed by the worker for this tick
+  SENT // delivered to FCM (best-effort)
+  FAILED // attempt failed, will retry until maxAttempts
+  DEAD // retries exhausted — no further attempts
+}
+
+model Notification {
+  id         String           @id @default(uuid()) @db.VarChar(36)
+  userId     String           @db.VarChar(36) // recipient
+  type       NotificationType
+  title      String           @db.VarChar(255)
+  body       String
+  // Source entity for deep-linking (e.g. "LaporanAwal" / "Ticket").
+  entityType String?          @db.VarChar(100)
+  entityId   String?          @db.VarChar(36)
+  // JSON blob mirrored into the FCM `data` payload (deep-link routing).
+  data       String?
+  // Idempotency key — unique per recipient. The same (event, entity, actor)
+  // produces the same key, so a retried/duplicated trigger is a no-op insert.
+  dedupeKey  String           @db.VarChar(255)
+  readAt     DateTime?        @db.Timestamptz(0)
+  createdAt  DateTime         @default(now()) @db.Timestamptz(0)
+
+  user       User                   @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "notifications_user_fk")
+  deliveries NotificationDelivery[]
+
+  @@unique([userId, dedupeKey], map: "uq_notification_dedupe")
+  @@index([userId], map: "idx_notification_user")
+  @@index([userId, readAt], map: "idx_notification_user_read")
+  @@index([createdAt], map: "idx_notification_created")
+  // Perf audit: the inbox list filters by userId then ORDER BY createdAt DESC.
+  // The userId-only index left MySQL doing a filesort per page — this composite
+  // serves both the predicate and the ordering.
+  @@index([userId, createdAt], map: "idx_notification_user_created")
+  @@map("notifications")
+}
+
+// One row per (notification, channel) delivery attempt-set. The queue worker
+// claims PENDING rows whose nextAttemptAt is due, calls the channel sender, and
+// either marks SENT or schedules the next retry with exponential backoff until
+// maxAttempts is reached (then DEAD).
+model NotificationDelivery {
+  id             String                     @id @default(uuid()) @db.VarChar(36)
+  notificationId String                     @db.VarChar(36)
+  channel        String                     @default("PUSH") @db.VarChar(20)
+  status         NotificationDeliveryStatus @default(PENDING)
+  attempts       Int                        @default(0)
+  maxAttempts    Int                        @default(5)
+  lastError      String?
+  nextAttemptAt  DateTime                   @default(now()) @db.Timestamptz(0)
+  sentAt         DateTime?                  @db.Timestamptz(0)
+  createdAt      DateTime                   @default(now()) @db.Timestamptz(0)
+  updatedAt      DateTime                   @default(now()) @updatedAt @db.Timestamptz(0)
+
+  notification Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "notification_deliveries_notification_fk")
+
+  @@index([status, nextAttemptAt], map: "idx_notification_delivery_due")
+  @@index([notificationId], map: "idx_notification_delivery_notification")
+  @@map("notification_deliveries")
+}
+
+// ── Offline sync idempotency (ADDITIVE) ──────────────────────────────────────
+// Backs the `X-Idempotency-Key` header replayed by the offline sync engine
+// (FE/src/lib/offline). Each queued report carries a stable clientId; the
+// idempotency middleware reserves the key before the create handler runs and
+// stores the success response against it. A retried submit after an *ambiguous*
+// failure (server committed the record but the response was lost in transit)
+// therefore replays the stored response instead of creating a duplicate.
+// Spec: docs/OFFLINE_SYNC_REPORT.md
+model IdempotencyKey {
+  // The client-generated key (queue item clientId). Primary key = atomic reserve.
+  key          String   @id @db.VarChar(255)
+  // Owner of the request, for scoping/audit (nullable — header may precede auth).
+  userId       String?  @db.VarChar(36)
+  // "METHOD /base/path" the key was first used on, so a stray key reused on a
+  // different endpoint is visible in audits.
+  scope        String   @db.VarChar(255)
+  // IN_PROGRESS while the handler runs; COMPLETED once a 2xx response is stored.
+  status       String   @default("IN_PROGRESS") @db.VarChar(20)
+  statusCode   Int?
+  // Serialized success response, replayed verbatim on a duplicate submit.
+  responseBody String?
+  createdAt    DateTime @default(now()) @db.Timestamptz(0)
+
+  @@index([createdAt], map: "idx_idempotency_created")
+  @@map("idempotency_keys")
+}
+
+// ── SCADA daily-availability registry (Laporan Gardu RC / GH / GI) ───────────────
+// Source of truth for the real-time INS/OOP dashboard. Each row is one gardu of a
+// given type, carrying its YTD availability, its current (latest-dated) status and
+// the full per-day availability series (JSON) for trend charts. Fed by the Excel
+// importer `prisma/seed-scada-laporan.ts`. Additive — touches nothing in V1/V2.
+enum ScadaGarduType {
+  RC // Gardu RC (remote-control distribusi) — drives the realtime dashboard
+  GH // Gardu Hubung
+  GI // Gardu Induk
+  GFD // Gardu Fault Detector — reserved (file menyusul)
+}
+
+// Current SCADA telemetry state for a gardu, derived from its latest-dated
+// availability value: 1/partial → IN_SCAN (terpantau), 0 → OOP (out of poll).
+enum ScadaStatus {
+  IN_SCAN
+  OOP
+}
+
+model ScadaGardu {
+  id            String         @id @default(uuid()) @db.VarChar(36)
+  garduType     ScadaGarduType
+  code          String         @db.VarChar(150) // Gardu code/name from the report
+  up3           String?        @db.VarChar(150)
+  rtupp         String?        @db.VarChar(100)
+  wilayah       String?        @db.VarChar(100) // GI only (WILAYAH column)
+  avaYtd        Float? // %AVA YTD as a 0..1 fraction
+  currentValue  Float? // latest-dated daily availability value (0..1)
+  currentStatus ScadaStatus? // derived from currentValue
+  asOfDate      DateTime?      @db.Date // date of the currentValue column
+  daily         Json? // { "2026-01-01": 1, "2026-01-02": 0, ... } non-null days
+  sourceFile    String?        @db.VarChar(255)
+  importedAt    DateTime       @default(now()) @db.Timestamptz(0)
+  createdAt     DateTime       @default(now()) @db.Timestamptz(0)
+  updatedAt     DateTime       @default(now()) @updatedAt @db.Timestamptz(0)
+
+  workOrders WorkOrder[]
+
+  @@unique([garduType, code], map: "uq_scada_gardu_type_code")
+  @@index([garduType], map: "idx_scada_gardu_type")
+  @@index([currentStatus], map: "idx_scada_gardu_status")
+  @@index([garduType, currentStatus], map: "idx_scada_gardu_type_status")
+  @@map("scada_gardu")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Bulk historical inspection import (ADDITIVE, read-only analytics dataset).
+//
+// One row per equipment-condition inspection visit, bulk-imported from the
+// field team's external Google-Sheets-based inspection logs (Laporan Inspeksi
+// Gardu Distribusi/MP + Gardu Hubung/GH). This is DISTINCT from
+// LaporanInspeksiMp/LaporanInspeksiGh (the app's own WO-gated submission
+// workflow): those are live, single-section-JSON, status-gated reports authored
+// through the app; this table is a flat historical corpus fed only by
+// scripts/import-inspeksi-gardu.ts, feeding the AI Brain's equipment-condition
+// queries. A gardu can have many rows over time (one per inspection visit) —
+// duplicates across visits are expected, not a bug.
+// ─────────────────────────────────────────────────────────────────────────────
+model InspeksiGarduRecord {
+  id        String   @id @default(uuid()) @db.VarChar(36)
+  createdAt DateTime @default(now()) @db.Timestamptz(0)
+  updatedAt DateTime @default(now()) @updatedAt @db.Timestamptz(0)
+
+  /// "GARDU_MP" | "GARDU_HUBUNG" — which source file this row came from.
+  sumberFile String @db.VarChar(20)
+
+  // Identitas
+  tanggalPekerjaan DateTime? @db.Date
+  userEmail        String?   @db.VarChar(255)
+  jenisPekerjaan   String?   @db.VarChar(150)
+  up3              String?   @db.VarChar(150)
+  kodeGardu        String?   @db.VarChar(100)
+  penyulang        String?   @db.VarChar(150)
+  sumberListrik220 String?   @db.VarChar(100)
+  supplyTr         String?   @db.VarChar(100)
+
+  // Rectifier
+  mcbSumberRectifier  String? @db.VarChar(100)
+  merkRectifier       String? @db.VarChar(150)
+  typeRectifier       String? @db.VarChar(150)
+  serialRectifier     String? @db.VarChar(150)
+  kondisiRectifier    String? @db.VarChar(100)
+  hasilUkurMcb220     Float?
+  hasilUkurMcbBat48   Float?
+  hasilUkurMcbLoad48  Float?
+  keteranganRectifier String?
+  kesimpulanRectifier String? @db.VarChar(50) // BAIK | RUSAK | PERLU PENGECEKAN LANJUT
+  kategoriRectifier   String? @db.VarChar(100) // detailed non-normal classification (e.g. "SUMBER TEGANGAN TIDAK ADA")
+
+  // Baterai
+  jenisBaterai      String? @db.VarChar(100)
+  merkBaterai       String? @db.VarChar(150)
+  typeBaterai       String? @db.VarChar(150)
+  jumlahCell        Int?
+  levelAirBaterai   String? @db.VarChar(100)
+  backupBaterai     String? @db.VarChar(100)
+  keteranganBaterai String?
+  kesimpulanBaterai String? @db.VarChar(50)
+  kategoriBaterai   String? @db.VarChar(100)
+
+  // RTU
+  merkRtu           String? @db.VarChar(150)
+  typeRtu           String? @db.VarChar(150)
+  serialRtu         String? @db.VarChar(150)
+  kondisiRtu        String? @db.VarChar(100)
+  kondisiDisplayRtu String? @db.VarChar(100)
+  keteranganRtu     String?
+  kesimpulanRtu     String? @db.VarChar(50)
+  kategoriRtu       String? @db.VarChar(100)
+
+  // Media (modem/router)
+  merkMedia       String? @db.VarChar(150)
+  typeMedia       String? @db.VarChar(150)
+  serialMedia     String? @db.VarChar(150)
+  kondisiMedia    String? @db.VarChar(100)
+  kondisiAntena   String? @db.VarChar(100)
+  keteranganMedia String?
+  kesimpulanMedia String? @db.VarChar(50)
+  kategoriMedia   String? @db.VarChar(100)
+
+  // Status SCADA & kubikel (GH: first cubicle/feeder-direction block only —
+  // GH rows may have a second penyulang/cubicle block in the source that is
+  // not captured here)
+  statusScada       String? @db.VarChar(50) // INSCAN | OOP style values
+  statusRc          String? @db.VarChar(50) // SIAP RC | TIDAK SIAP RC
+  keteranganKubikel String?
+
+  // Catatan umum & pelaksana
+  catatan       String?
+  pelaksana     String?   @db.VarChar(255)
+  tanggalUpdate DateTime? @db.Timestamptz(0)
+
+  // Relasi ke Location jika kode gardu ditemukan (nullable — banyak kode di
+  // Excel tidak match langsung ke tabel locations)
+  locationId String?   @db.VarChar(36)
+  location   Location? @relation(fields: [locationId], references: [id], onUpdate: Restrict, map: "inspeksi_gardu_records_location_fk")
+
+  @@index([kodeGardu], map: "idx_inspeksi_gardu_records_kode_gardu")
+  @@index([up3], map: "idx_inspeksi_gardu_records_up3")
+  @@index([statusScada], map: "idx_inspeksi_gardu_records_status_scada")
+  @@index([tanggalPekerjaan], map: "idx_inspeksi_gardu_records_tanggal")
+  @@index([kesimpulanRectifier], map: "idx_inspeksi_gardu_records_kesimpulan_rectifier")
+  @@index([kesimpulanBaterai], map: "idx_inspeksi_gardu_records_kesimpulan_baterai")
+  @@index([kesimpulanRtu], map: "idx_inspeksi_gardu_records_kesimpulan_rtu")
+  @@index([kesimpulanMedia], map: "idx_inspeksi_gardu_records_kesimpulan_media")
+  @@index([locationId], map: "idx_inspeksi_gardu_records_location")
+  @@map("inspeksi_gardu_records")
+}
+
+/// Historical HAR (Pemeliharaan) field records imported from the field team's
+/// external Google-Sheets logs. Additive analytics table — append-only,
+/// never updated, never soft-deleted. Mirror of InspeksiGarduRecord structure
+/// with HAR-specific additions (jenisPekerjaan, analisa gangguan, status
+/// pekerjaan, ACO detail, dll). Fed only by prisma/import-har-gardu.ts.
+/// Catatan sumber (diverifikasi empiris dari file Excel — beda dari inspeksi):
+/// di file HAR kolom "KONDISI <X>" berisi verdict bersih (BAIK/RUSAK/PERLU CEK
+/// LEBIH LANJUT) sedangkan "KESIMPULAN KODISI <X>" berisi catatan teks bebas —
+/// maka kesimpulan* di sini diisi dari KONDISI dan catatan bebasnya masuk
+/// keterangan* (Text).
+model HarGarduRecord {
+  id        String   @id @default(uuid()) @db.VarChar(36)
+  createdAt DateTime @default(now()) @db.Timestamptz(0)
+  updatedAt DateTime @default(now()) @updatedAt @db.Timestamptz(0)
+
+  /// "GARDU_MP" | "GARDU_HUBUNG"
+  sumberFile String @db.VarChar(20)
+
+  // Identitas
+  tanggalPekerjaan DateTime? @db.Date
+  userEmail        String?   @db.VarChar(255)
+  jenisPekerjaan   String?   @db.VarChar(150)
+  up3              String?   @db.VarChar(150)
+  kodeGardu        String?   @db.VarChar(100)
+  penyulang        String?   @db.VarChar(150)
+  sumberListrik220 String?   @db.VarChar(100)
+  supplyTr         String?   @db.VarChar(100)
+
+  // Rectifier
+  mcbSumberRectifier  String? @db.VarChar(100)
+  merkRectifier       String? @db.VarChar(150)
+  typeRectifier       String? @db.VarChar(150)
+  serialRectifier     String? @db.VarChar(150)
+  kondisiRectifier    String? @db.VarChar(100)
+  hasilUkurMcb220     Float?
+  hasilUkurMcbBat48   Float?
+  hasilUkurMcbLoad48  Float?
+  keteranganRectifier String?
+  kesimpulanRectifier String? @db.VarChar(50) // BAIK | RUSAK | PERLU CEK LEBIH LANJUT
+  kategoriRectifier   String? @db.VarChar(100)
+
+  // Baterai
+  jenisBaterai      String? @db.VarChar(100)
+  merkBaterai       String? @db.VarChar(150)
+  typeBaterai       String? @db.VarChar(150)
+  jumlahCell        Int?
+  levelAirBaterai   String? @db.VarChar(100)
+  backupBaterai     String? @db.VarChar(100)
+  keteranganBaterai String?
+  kesimpulanBaterai String? @db.VarChar(50)
+  kategoriBaterai   String? @db.VarChar(100)
+
+  // RTU
+  merkRtu           String? @db.VarChar(150)
+  typeRtu           String? @db.VarChar(150)
+  serialRtu         String? @db.VarChar(150)
+  kondisiRtu        String? @db.VarChar(100)
+  kondisiDisplayRtu String? @db.VarChar(100)
+  keteranganRtu     String?
+  kesimpulanRtu     String? @db.VarChar(50)
+  kategoriRtu       String? @db.VarChar(100)
+
+  // Media
+  merkMedia       String? @db.VarChar(150)
+  typeMedia       String? @db.VarChar(150)
+  serialMedia     String? @db.VarChar(150)
+  kondisiMedia    String? @db.VarChar(100)
+  kondisiAntena   String? @db.VarChar(100)
+  keteranganMedia String?
+  kesimpulanMedia String? @db.VarChar(50)
+  kategoriMedia   String? @db.VarChar(100)
+
+  // HAR-specific: analisa & status pekerjaan
+  penyebabGangguan   String?
+  analisaGangguan    String?
+  langkahPekerjaan   String?
+  statusGarduSebelum String? @db.VarChar(100)
+  statusGarduSesudah String? @db.VarChar(100)
+  statusPekerjaan    String? @db.VarChar(100)
+
+  // Kubikel (first block only — same pattern as InspeksiGarduRecord)
+  statusScada       String? @db.VarChar(50) // INSCAN | OOP — proxy dari STATUS GARDU SESUDAH (null jika bukan)
+  statusRc          String? @db.VarChar(100) // teks bebas di sumber (maxLen 62 empiris) — sengaja > VarChar(50) inspeksi
+  keteranganKubikel String?
+
+  // ACO (header ada di kedua file, tapi 100% kosong pada data 2026-07 — tetap dipetakan)
+  adaAco             String? @db.VarChar(20)
+  jumlahAco          Int?
+  jumlahAcoIntegrasi Int?
+  jumlahAcoTidak     Int?
+  catatanAcoTidak    String?
+
+  // Catatan umum & pelaksana
+  catatan       String?
+  pelaksana     String?   @db.VarChar(255)
+  tanggalUpdate DateTime? @db.Timestamptz(0)
+
+  // Relasi ke Location (nullable — sama dengan InspeksiGarduRecord)
+  locationId String?   @db.VarChar(36)
+  location   Location? @relation(fields: [locationId], references: [id], onUpdate: Restrict, map: "har_gardu_records_location_fk")
+
+  @@index([kodeGardu], map: "idx_har_gardu_records_kode_gardu")
+  @@index([up3], map: "idx_har_gardu_records_up3")
+  @@index([sumberFile], map: "idx_har_gardu_records_sumber_file")
+  @@index([tanggalPekerjaan], map: "idx_har_gardu_records_tanggal")
+  @@index([kesimpulanRectifier], map: "idx_har_gardu_records_kesimpulan_rectifier")
+  @@index([kesimpulanBaterai], map: "idx_har_gardu_records_kesimpulan_baterai")
+  @@index([kesimpulanRtu], map: "idx_har_gardu_records_kesimpulan_rtu")
+  @@index([kesimpulanMedia], map: "idx_har_gardu_records_kesimpulan_media")
+  @@index([locationId], map: "idx_har_gardu_records_location")
+  @@map("har_gardu_records")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// VoltHub AI Brain — Learning Foundation (PHASE 7). ADDITIVE / append-only.
+//
+// These tables only COLLECT learning data — the Brain does NOT auto-train on
+// them. They give us the corpus to (later) tune the dictionary, intent catalog
+// and per-user aliases offline, with a human in the loop.
+//
+// PRIVACY/RBAC: every row is stamped with the asking user + their role + tenant
+// (rtuppId) at ask time, so analytics inherit the same isolation as live data.
+// No raw query results are stored — only the question, the interpreted intent,
+// confidence, and the resolved action.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// One row per assistant turn. The backbone of the learning corpus.
+model AiConversation {
+  id        String  @id @default(uuid()) @db.VarChar(36)
+  sessionId String  @db.VarChar(64)
+  userId    String? @db.VarChar(36)
+  role      String? @db.VarChar(30) // canonical role at ask time
+  rtuppId   String? @db.VarChar(36) // tenant at ask time (null = global)
+  channel   String  @default("in_app") @db.VarChar(20) // in_app | whatsapp | voice
+
+  question      String
+  intent        String? @db.VarChar(50) // detected IntentId
+  confidence    Float? // 0..1
+  mode          String? @db.VarChar(20) // EXECUTE | CLARIFY | SUGGEST
+  /// Resolved action actually taken, e.g. the queryId or "clarify"/"suggest".
+  finalAction   String? @db.VarChar(100)
+  /// Clarification option the user picked (Phase 4), if any.
+  clarification String? @db.VarChar(120)
+  provider      String? @db.VarChar(30) // local | claude | openai | gemini
+  replyKind     String? @db.VarChar(20) // answer | clarify | suggest | denied
+  /// True when the security layer blocked the turn (prompt injection / RBAC).
+  blocked       Boolean @default(false)
+  latencyMs     Int?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(0)
+
+  feedback AiFeedback[]
+
+  @@index([userId], map: "idx_ai_conv_user")
+  @@index([sessionId], map: "idx_ai_conv_session")
+  @@index([intent], map: "idx_ai_conv_intent")
+  @@index([createdAt], map: "idx_ai_conv_created")
+  @@map("ai_conversations")
+}
+
+/// Thumbs up/down (and optional note) on a specific answer.
+model AiFeedback {
+  id             String   @id @default(uuid()) @db.VarChar(36)
+  conversationId String   @db.VarChar(36)
+  userId         String?  @db.VarChar(36)
+  rating         Int // +1 helpful, -1 not helpful
+  note           String?
+  createdAt      DateTime @default(now()) @db.Timestamptz(0)
+
+  conversation AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "ai_feedback_conv_fk")
+
+  @@index([conversationId], map: "idx_ai_feedback_conv")
+  @@map("ai_feedback")
+}
+
+/// Per-user preferences (favourite questions, default scope, language…).
+model AiUserPreference {
+  id              String   @id @default(uuid()) @db.VarChar(36)
+  userId          String   @unique(map: "uq_ai_pref_user") @db.VarChar(36)
+  /// Free-form JSON bag — kept loose so new prefs need no migration.
+  prefs           Json?
+  /// Snapshot konteks terakhir — disimpan saat session berakhir (warm context
+  /// lintas sesi). JSON: { lastIntent, lastGardu, lastUp3, lastTopics: string[],
+  /// topIntents: {id,count}[], lastActiveAt: string }
+  contextSnapshot Json?
+  /// Preferensi output yang dipelajari dari feedback/pemakaian.
+  /// JSON: { preferDetail: bool, preferBahasa: 'id'|'formal'|'singkat',
+  /// avoidIntents: string[], topGardu: string[], topPenyulang: string[] }
+  learnedPrefs    Json?
+  updatedAt       DateTime @default(now()) @updatedAt @db.Timestamptz(0)
+
+  @@map("ai_user_preferences")
+}
+
+/// Learned vocabulary: a user (or admin) maps a phrase onto a Brain concept.
+/// Merged into the dictionary at runtime (resolveConcepts extraEntries).
+model AiAlias {
+  id        String   @id @default(uuid()) @db.VarChar(36)
+  /// Owner scope: null = global alias (MASTER-curated); else a specific user.
+  userId    String?  @db.VarChar(36)
+  phrase    String   @db.VarChar(120)
+  /// Target Brain concept id, e.g. "status.offline" or "entity.gardu".
+  concept   String   @db.VarChar(60)
+  /// How the alias was created: manual | learned | curated.
+  source    String   @default("manual") @db.VarChar(20)
+  approved  Boolean  @default(false) // learned aliases need approval before use
+  createdAt DateTime @default(now()) @db.Timestamptz(0)
+
+  @@unique([userId, phrase], map: "uq_ai_alias_user_phrase")
+  @@index([concept], map: "idx_ai_alias_concept")
+  @@map("ai_aliases")
+}
+
+/// Catalog of intents the Brain knows, mirrored to the DB for analytics +
+/// future admin tuning. Seeded from INTENT_CATALOG; not the runtime source.
+model AiIntent {
+  id           String   @id @default(uuid()) @db.VarChar(36)
+  intentId     String   @unique(map: "uq_ai_intent_id") @db.VarChar(50)
+  label        String   @db.VarChar(120)
+  queryId      String?  @db.VarChar(60)
+  allowedRoles String   @db.VarChar(120) // CSV of canonical roles
+  examples     Json?
+  enabled      Boolean  @default(true)
+  updatedAt    DateTime @default(now()) @updatedAt @db.Timestamptz(0)
+
+  @@map("ai_intents")
+}
+
+// ============================================================
+// VoltHub — Operation Management System GI RTUPP1 (Work Order domain)
+// Additive on top of the existing schema. The Work Order is the entry point of
+// the operational workflow:
+//   SCADA Event → ADMIN create WO → assign Tim → PETUGAS Laporan Awal →
+//   eksekusi → Laporan Akhir → ADMIN approval → WO CLOSED.
+// All nullable/defaulted FKs → backward compatible (no data break).
+// Tenant boundary stays at Location.rtuppId (WO roots at a GI location).
+// ============================================================
+
+enum WorkOrderType {
+  CORRECTIVE
+  PREVENTIVE
+}
+
+enum WorkOrderStatus {
+  DRAFT
+  ASSIGNED
+  ON_PROGRESS
+  WAITING_APPROVAL
+  APPROVED
+  REJECTED
+  CLOSED
+}
+
+// Laporan Awal per-perangkat condition checklist (Relay/RC/LR/ES/CB).
+enum ChecklistCondition {
+  NORMAL
+  ABNORMAL
+  TIDAK_BEROPERASI
+}
+
+// Laporan Akhir remote-control test outcome (RC/LR/ES).
+enum WorkResult {
+  BERHASIL
+  GAGAL
+}
+
+// Laporan Akhir CB final state.
+enum CbStatus {
+  NORMAL
+  TIDAK_NORMAL
+}
+
+// Bay sits between GI (Location) and Penyulang (Feeder)/Asset:
+//   GI (Location) → Bay → Penyulang (Feeder) → Asset
+model Bay {
+  id           String    @id @default(uuid()) @db.VarChar(36)
+  locationId   String    @db.VarChar(36) // owning GI
+  code         String    @db.VarChar(50)
+  name         String    @db.VarChar(255)
+  voltageLevel String?   @db.VarChar(50)
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now()) @db.Timestamptz(0)
+  updatedAt    DateTime  @default(now()) @updatedAt @db.Timestamptz(0)
+  createdBy    String?   @db.VarChar(36)
+  updatedBy    String?   @db.VarChar(36)
+  deletedAt    DateTime? @db.Timestamptz(0)
+
+  location   Location    @relation(fields: [locationId], references: [id], onUpdate: Restrict, map: "bays_location_fk")
+  feeders    Feeder[]
+  assets     Asset[]
+  workOrders WorkOrder[]
+
+  @@unique([locationId, code], map: "uq_bay_location_code")
+  @@index([locationId], map: "idx_bays_location")
+  @@map("bays")
+}
+
+model WorkOrder {
+  id          String          @id @default(uuid()) @db.VarChar(36)
+  woNumber    String          @unique(map: "uq_wo_number") @db.VarChar(100)
+  type        WorkOrderType
+  status      WorkOrderStatus @default(DRAFT)
+  priority    TicketPriority  @default(MEDIUM)
+  title       String          @db.VarChar(255)
+  description String?
+
+  // Location hierarchy (GI is the tenant boundary via location.rtuppId)
+  locationId String  @db.VarChar(36)
+  bayId      String? @db.VarChar(36)
+  feederId   String? @db.VarChar(36)
+  assetId    String? @db.VarChar(36)
+
+  // Assignment — team only (no per-individual assignee).
+  teamId String? @db.VarChar(36)
+
+  // SCADA event source (optional entry point)
+  scadaGarduId  String? @db.VarChar(36)
+  scadaEventRef String? @db.VarChar(255)
+
+  dueDate DateTime? @db.Date
+
+  // Lifecycle
+  createdById  String?   @db.VarChar(36)
+  startedAt    DateTime? @db.Timestamptz(0)
+  submittedAt  DateTime? @db.Timestamptz(0)
+  approvedAt   DateTime? @db.Timestamptz(0)
+  rejectedAt   DateTime? @db.Timestamptz(0)
+  closedAt     DateTime? @db.Timestamptz(0)
+  approvedById String?   @db.VarChar(36)
+  rejectedById String?   @db.VarChar(36)
+  revisionNote String?
+
+  // Laporan WO — hasil penyelesaian pekerjaan (menggantikan Laporan Akhir).
+  // Diisi PETUGAS saat menyelesaikan WO, lalu diajukan untuk approval.
+  hasilRC     WorkResult?
+  hasilLR     WorkResult?
+  hasilES     WorkResult?
+  statusCB    CbStatus?
+  penyebab    String?
+  tindakan    String?
+  rekomendasi String?
+
+  // Laporan wajib yang dicentang admin saat membuat WO (GI/RTUPP1).
+  // JSON array of string: ["GI"] | ["HAR"] | ["GI","HAR"]. NULL/[] = legacy (tanpa
+  // kewajiban → gate penyelesaian lolos otomatis). ADITIF — tak menyentuh hasilRC/RBAC/isolasi.
+  requiredReports Json?
+
+  createdAt DateTime  @default(now()) @db.Timestamptz(0)
+  updatedAt DateTime  @default(now()) @updatedAt @db.Timestamptz(0)
+  deletedAt DateTime? @db.Timestamptz(0)
+
+  location          Location              @relation(fields: [locationId], references: [id], onUpdate: Restrict, map: "work_orders_location_fk")
+  bay               Bay?                  @relation(fields: [bayId], references: [id], onUpdate: Restrict, map: "work_orders_bay_fk")
+  feeder            Feeder?               @relation(fields: [feederId], references: [id], onUpdate: Restrict, map: "work_orders_feeder_fk")
+  asset             Asset?                @relation(fields: [assetId], references: [id], onUpdate: Restrict, map: "work_orders_asset_fk")
+  team              Team?                 @relation(fields: [teamId], references: [id], onUpdate: Restrict, map: "work_orders_team_fk")
+  createdBy         User?                 @relation("WorkOrderCreatedBy", fields: [createdById], references: [id], onUpdate: Restrict, map: "work_orders_created_by_fk")
+  approvedBy        User?                 @relation("WorkOrderApprovedBy", fields: [approvedById], references: [id], onUpdate: Restrict, map: "work_orders_approved_by_fk")
+  rejectedBy        User?                 @relation("WorkOrderRejectedBy", fields: [rejectedById], references: [id], onUpdate: Restrict, map: "work_orders_rejected_by_fk")
+  scadaGardu        ScadaGardu?           @relation(fields: [scadaGarduId], references: [id], onUpdate: Restrict, map: "work_orders_scada_fk")
+  laporanAwal       LaporanAwal[]
+  laporanAkhir      LaporanAkhir[]
+  attachments       WorkOrderAttachment[]
+  laporanGi         LaporanGi[]
+  laporanHarGi      LaporanHarGi[]
+  laporanInspeksiGh LaporanInspeksiGh[]
+  laporanHarGh      LaporanHarGh[]
+  laporanInspeksiMp LaporanInspeksiMp[]
+  laporanHarMp      LaporanHarMp[]
+
+  @@index([locationId], map: "idx_wo_location")
+  @@index([status], map: "idx_wo_status")
+  @@index([type], map: "idx_wo_type")
+  @@index([teamId], map: "idx_wo_team")
+  @@index([dueDate], map: "idx_wo_due")
+  @@index([status, createdAt], map: "idx_wo_status_created")
+  @@map("work_orders")
+}
+
+// Foto/lampiran Laporan WO (mis. FOTO_SEBELUM / FOTO_HASIL). Tabel terpisah dari
+// `attachments` (yang terikat ke laporan_awal/akhir) agar plumbing lama tak tersentuh.
+model WorkOrderAttachment {
+  id           String   @id @default(uuid()) @db.VarChar(36)
+  workOrderId  String   @db.VarChar(36)
+  originalName String   @db.VarChar(255)
+  fileName     String   @db.VarChar(255)
+  mimeType     String   @db.VarChar(100)
+  size         Int
+  path         String   @db.VarChar(500)
+  category     String?  @db.VarChar(50) // FOTO_SEBELUM / FOTO_HASIL / LAMPIRAN
+  uploadedById String?  @db.VarChar(36)
+  uploadedAt   DateTime @default(now()) @db.Timestamptz(0)
+
+  workOrder WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "wo_attachments_wo_fk")
+
+  @@index([workOrderId], map: "idx_wo_attachment_wo")
+  @@map("work_order_attachments")
+}
+
+// ── Laporan GI (Inspeksi Teknis Lengkap Gardu Induk) ─────────────────────────
+// PETUGAS GI mengisi laporan preventif lengkap per gardu+penyulang (152 kolom dari
+// "Laporan GI.xlsx"). ADITIF: tidak menyentuh WorkOrder.hasilRC / RBAC / isolasi
+// RTUPP (boundary = location.rtuppId, sama seperti modul operasional lain).
+
+// Status workflow Laporan GI (approval admin, semantik mengikuti modul GI yang ada).
+enum GiReportStatus {
+  DRAFT
+  SUBMITTED
+  VALIDATED
+  REJECTED
+}
+
+// Hasil pembanding lapangan vs master SCADA (diisi kelak; TIDAK menyentuh hasilRC).
+enum GiComparison {
+  BELUM_DIBANDING
+  SESUAI
+  TIDAK_SESUAI
+}
+
+model LaporanGi {
+  id String @id @default(uuid()) @db.VarChar(36)
+
+  // ── IDENTITAS (auto-fill dari WO + login; read-only di FE) ──
+  locationId  String   @db.VarChar(36) // GARDU — tenant boundary via location.rtuppId
+  feederId    String?  @db.VarChar(36) // PENYULANG (opsional; laporan level-RTU bisa null)
+  workOrderId String?  @db.VarChar(36) // FK opsional → WorkOrder (auto-fill identitas)
+  up3         String?  @db.VarChar(150) // snapshot UP3 (dari location/WO)
+  reportDate  DateTime @db.Date // TANGGAL PEKERJAAN
+  pelaksana   String?  @db.VarChar(255) // vendor/tim (PT ...)
+  inspectorId String?  @db.VarChar(36) // USER pelapor (akun login)
+
+  status           GiReportStatus @default(DRAFT)
+  comparisonResult GiComparison   @default(BELUM_DIBANDING)
+
+  // ── Pembanding SCADA (opsional; TIDAK mengubah hasilRC) ──
+  scadaRtuName    String? @db.VarChar(255)
+  scadaSnapshotId String? @db.VarChar(36)
+
+  // ── Status inti Kubikel + "DI MASTER" (PROMOTED ke kolom scalar agar mudah
+  // dibandingkan untuk comparisonResult & kelak derivasi hasilRC). String bebas
+  // (CLOSE/OPEN, LOCAL/REMOTE, SESUAI/TIDAK SESUAI, TIMBUL/TIDAK TIMBUL, dst).
+  statusPmt         String? @db.VarChar(50)
+  statusPmtDiMaster String? @db.VarChar(50)
+  statusLr          String? @db.VarChar(50)
+  statusLrDiMaster  String? @db.VarChar(50)
+  esDiMaster        String? @db.VarChar(50)
+  mpufDiMaster      String? @db.VarChar(50)
+
+  // ── PAYLOAD PER-SECTION (Opsi B: JSON per-section) ──
+  // Section yang bisa absen menyimpan flag { tidakAda: true } → field-nya di-skip
+  // dari validasi wajib.
+  rectifier       Json? // Rectifier (selalu ada)
+  rectifierBackup Json? // bisa absen → { tidakAda }
+  baterai         Json? // { jenis (teks bebas), ... }
+  serialDevice    Json? // { utama, device2, jumlah, device2TidakAda }
+  rtuIo           Json? // RTU I/O (selalu ada)
+  kubikel         Json? // { merekCubicle, elements: { PMT, LR, ... }, keterangan, kesimpulan }
+  relayProteksi   Json? // bisa absen → { tidakAda }
+
+  notes   String? // LAIN2
+  catatan String? // CATATAN
+
+  // ── Approval admin (DRAFT→SUBMITTED→VALIDATED/REJECTED) ──
+  submittedAt    DateTime? @db.Timestamptz(0)
+  validatedAt    DateTime? @db.Timestamptz(0)
+  validatedBy    String?   @db.VarChar(36)
+  validationNote String?
+
+  createdAt DateTime  @default(now()) @db.Timestamptz(0)
+  updatedAt DateTime  @default(now()) @updatedAt @db.Timestamptz(0)
+  createdBy String?   @db.VarChar(36)
+  updatedBy String?   @db.VarChar(36)
+  deletedAt DateTime? @db.Timestamptz(0)
+
+  location    Location              @relation(fields: [locationId], references: [id], onUpdate: Restrict, map: "laporan_gi_location_fk")
+  feeder      Feeder?               @relation(fields: [feederId], references: [id], onUpdate: Restrict, map: "laporan_gi_feeder_fk")
+  workOrder   WorkOrder?            @relation(fields: [workOrderId], references: [id], onUpdate: Restrict, map: "laporan_gi_wo_fk")
+  inspector   User?                 @relation("LaporanGiInspector", fields: [inspectorId], references: [id], onUpdate: Restrict, map: "laporan_gi_inspector_fk")
+  attachments LaporanGiAttachment[]
+
+  @@index([locationId], map: "idx_laporan_gi_location")
+  @@index([feederId], map: "idx_laporan_gi_feeder")
+  @@index([workOrderId], map: "idx_laporan_gi_wo")
+  @@index([status], map: "idx_laporan_gi_status")
+  @@index([status, createdAt], map: "idx_laporan_gi_status_created")
+  @@index([reportDate], map: "idx_laporan_gi_date")
+  @@map("laporan_gi")
+}
+
+// ── Laporan HAR GI (Korektif/Pemeliharaan Gardu Induk — 81 kolom xlsx) ────────
+// FASE B. PETUGAS GI mengisi laporan HAR per gardu (RTUPP1). WAJIB ber-WO (beda
+// dari LaporanGi yang workOrderId-nya nullable). Opsi B: induk + JSON per-section.
+// ADITIF: tidak menyentuh hasilRC / RBAC / isolasi RTUPP / modul `har` legacy.
+// Status workflow REUSE enum GiReportStatus (DRAFT/SUBMITTED/VALIDATED/REJECTED).
+model LaporanHarGi {
+  id String @id @default(uuid()) @db.VarChar(36)
+
+  // ── IDENTITAS (auto-fill dari WO + login; read-only di FE) ──
+  workOrderId  String   @db.VarChar(36) // WAJIB → satu jalur approval via WO
+  locationId   String   @db.VarChar(36) // GARDU — tenant boundary via location.rtuppId
+  feederId     String?  @db.VarChar(36) // PENYULANG (opsional)
+  assetId      String?  @db.VarChar(36) // ASET (opsional, auto WO)
+  up3          String?  @db.VarChar(150) // snapshot UP3 (dari lokasi)
+  reportDate   DateTime @db.Date // TGL PEKERJAAN (no-future)
+  ketKunjungan String?  @db.VarChar(255) // KET. KUNJUNGAN (input, dropdown defensif)
+  pelaksana    String?  @db.VarChar(255) // PELAKSANA (auto WO team)
+  pengawas     String?  @db.VarChar(255) // PENGAWAS (input)
+  inspectorId  String?  @db.VarChar(36) // USER pelapor (akun login)
+
+  status GiReportStatus @default(DRAFT)
+
+  scadaRtuName String? @db.VarChar(255)
+
+  // ── Status inti PROMOTED ke scalar (string bebas, defensif — sering difilter/
+  //    dashboard; "Berhasil RC" diturunkan dari statusGarduSesudah=INSCAN). ──
+  statusGarduSebelum String? @db.VarChar(50)
+  statusGarduSesudah String? @db.VarChar(50)
+  statusPekerjaan    String? @db.VarChar(50)
+  penyebabGangguan   Json? // ARRAY string multi (mis. ["BATERAI","RELAY"]) → chips FE
+
+  // ── PAYLOAD PER-SECTION (Opsi B: JSON per-section) ──
+  // Section absentable simpan flag { tidakAda: true } → di-skip dari validasi wajib.
+  io           Json? // I/O (merk/type/sn/kondisi/catatan)
+  relay        Json? // Relay
+  rectifier    Json? // Rectifier
+  baterai      Json? // Baterai { jenis, merk, type, kondisi, catatan }
+  serialDevice Json? // { jumlah, utama{...,kesimpulan}, device2{...}, device2TidakAda }
+  cctv         Json? // { bullet{...}, ptz{...}, nvr{...}, switchPoe{...} + *TidakAda }
+  penanganan   Json? // { analisa, langkah, hasil, tambahan, catatanLain }
+
+  // ── Approval admin (mirror via Work Order, sama pola LaporanGi) ──
+  submittedAt    DateTime? @db.Timestamptz(0)
+  validatedAt    DateTime? @db.Timestamptz(0)
+  validatedBy    String?   @db.VarChar(36)
+  validationNote String?
+
+  createdAt DateTime  @default(now()) @db.Timestamptz(0)
+  updatedAt DateTime  @default(now()) @updatedAt @db.Timestamptz(0)
+  createdBy String?   @db.VarChar(36)
+  updatedBy String?   @db.VarChar(36)
+  deletedAt DateTime? @db.Timestamptz(0)
+
+  workOrder WorkOrder @relation(fields: [workOrderId], references: [id], onUpdate: Restrict, map: "laporan_har_gi_wo_fk")
+  location  Location  @relation(fields: [locationId], references: [id], onUpdate: Restrict, map: "laporan_har_gi_location_fk")
+  feeder    Feeder?   @relation(fields: [feederId], references: [id], onUpdate: Restrict, map: "laporan_har_gi_feeder_fk")
+  asset     Asset?    @relation(fields: [assetId], references: [id], onUpdate: Restrict, map: "laporan_har_gi_asset_fk")
+  inspector User?     @relation("LaporanHarGiInspector", fields: [inspectorId], references: [id], onUpdate: Restrict, map: "laporan_har_gi_inspector_fk")
+
+  @@index([locationId], map: "idx_laporan_har_gi_location")
+  @@index([feederId], map: "idx_laporan_har_gi_feeder")
+  @@index([workOrderId], map: "idx_laporan_har_gi_wo")
+  @@index([status], map: "idx_laporan_har_gi_status")
+  @@index([status, createdAt], map: "idx_laporan_har_gi_status_created")
+  @@index([reportDate], map: "idx_laporan_har_gi_date")
+  @@map("laporan_har_gi")
+}
+
+// FASE C. Attachment untuk Laporan GI
+enum GiAttachmentCategory {
+  SLD
+  LOGGER
+  FOTO
+  VIDEO
+}
+
+enum GiAttachmentStatus {
+  UPLOADING
+  PROCESSING
+  READY
+  FAILED
+}
+
+model LaporanGiAttachment {
+  id            String               @id @default(uuid()) @db.VarChar(36)
+  laporanGiId   String               @db.VarChar(36)
+  category      GiAttachmentCategory
+  status        GiAttachmentStatus   @default(READY)
+  fileName      String               @db.VarChar(255) // nama file terkompresi / hasil akhir yang disajikan
+  originalName  String               @db.VarChar(255) // nama file asli
+  mimeType      String               @db.VarChar(100)
+  fileSize      Int
+  filePath      String               @db.VarChar(500) // path file hasil akhir (atau video terkompresi)
+  originalPath  String?              @db.VarChar(500) // path video mentah sebelum kompresi (untuk retry)
+  thumbnailPath String?              @db.VarChar(500) // path poster video (ffmpeg)
+  durationSec   Int?
+  errorMessage  String?              @db.VarChar(500)
+  uploadedById  String?              @db.VarChar(36)
+  createdAt     DateTime             @default(now()) @db.Timestamptz(0)
+  updatedAt     DateTime             @default(now()) @updatedAt @db.Timestamptz(0)
+  deletedAt     DateTime?            @db.Timestamptz(0)
+
+  laporanGi LaporanGi @relation(fields: [laporanGiId], references: [id], onDelete: Cascade, map: "laporan_gi_attachments_laporan_gi_fk")
+
+  @@index([laporanGiId], map: "idx_laporan_gi_attachments_laporan_gi")
+  @@index([laporanGiId, category], map: "idx_laporan_gi_attachments_laporan_gi_category")
+  @@index([status], map: "idx_laporan_gi_attachments_status")
+  @@map("laporan_gi_attachments")
+}
+
+model LaporanInspeksiGh {
+  id          String   @id @default(uuid()) @db.VarChar(36)
+  workOrderId String   @db.VarChar(36)
+  locationId  String   @db.VarChar(36)
+  feederId    String?  @db.VarChar(36)
+  up3         String?  @db.VarChar(150)
+  reportDate  DateTime @db.Date
+  pelaksana   String?  @db.VarChar(255)
+  inspectorId String?  @db.VarChar(36)
+
+  status GiReportStatus @default(DRAFT)
+
+  // Promoted Scalars
+  statusRc            String? @db.VarChar(50)
+  statusCubicle       String? @db.VarChar(50)
+  statusCubicleMaster String? @db.VarChar(50)
+  statusLr            String? @db.VarChar(50)
+  statusLrMaster      String? @db.VarChar(50)
+
+  // JSON payloads
+  supplyTr  Json?
+  rectifier Json?
+  baterai   Json?
+  rtu       Json?
+  media1    Json?
+  media2    Json?
+  kubikel   Json?
+  fdiRelay  Json?
+  aco       Json?
+
+  notes   String?
+  catatan String?
+
+  // Approval
+  submittedAt    DateTime? @db.Timestamptz(0)
+  validatedAt    DateTime? @db.Timestamptz(0)
+  validatedBy    String?   @db.VarChar(36)
+  validationNote String?
+
+  createdAt DateTime  @default(now()) @db.Timestamptz(0)
+  updatedAt DateTime  @default(now()) @updatedAt @db.Timestamptz(0)
+  createdBy String?   @db.VarChar(36)
+  updatedBy String?   @db.VarChar(36)
+  deletedAt DateTime? @db.Timestamptz(0)
+
+  workOrder   WorkOrder                     @relation(fields: [workOrderId], references: [id], onDelete: Cascade, map: "laporan_inspeksi_gh_wo_fk")
+  location    Location                      @relation(fields: [locationId], references: [id], onUpdate: Restrict, map: "laporan_inspeksi_gh_location_fk")
+  feeder      Feeder?                       @relation(fields: [feederId], references: [id], onUpdate: Restrict, map: "laporan_inspeksi_gh_feeder_fk")
+  inspector   User?                         @relation("LaporanInspeksiGhInspector", fields: [inspectorId], references: [id], onUpdate: Restrict, map: "laporan_inspeksi_gh_inspector_fk")
+  attachments LaporanInspeksiGhAttachment[]
+
+  @@index([locationId], map: "idx_laporan_inspeksi_gh_location")
+  @@index([workOrderId], map: "idx_laporan_inspeksi_gh_wo")
+  @@index([status], map: "idx_laporan_inspeksi_gh_status")
+  @@map("laporan_inspeksi_gh")
+}
+
+model LaporanHarGh {
+  id          String   @id @default(uuid()) @db.VarChar(36)
+  workOrderId String   @db.VarChar(36)
+  locationId  String   @db.VarChar(36)
+  feederId    String?  @db.VarChar(36)
+  up3         String?  @db.VarChar(150)
+  reportDate  DateTime @db.Date
+  pelaksana   String?  @db.VarChar(255)
+  inspectorId String?  @db.VarChar(36)
+
+  status GiReportStatus @default(DRAFT)
+
+  // Promoted Scalars
+  statusRc            String? @db.VarChar(50)
+  statusCubicle       String? @db.VarChar(50)
+  statusCubicleMaster String? @db.VarChar(50)
+  statusLr            String? @db.VarChar(50)
+  statusLrMaster      String? @db.VarChar(50)
+
+  // HAR specific scalars
+  statusGarduSebelum String? @db.VarChar(50)
+  statusGarduSesudah String? @db.VarChar(50)
+  statusPekerjaan    String? @db.VarChar(50)
+  penyebabGangguan   Json?
+
+  // JSON payloads
+  supplyTr   Json?
+  rectifier  Json?
+  baterai    Json?
+  rtu        Json?
+  media1     Json?
+  media2     Json?
+  kubikel    Json?
+  fdiRelay   Json?
+  aco        Json?
+  penanganan Json?
+
+  notes   String?
+  catatan String?
+
+  // Approval
+  submittedAt    DateTime? @db.Timestamptz(0)
+  validatedAt    DateTime? @db.Timestamptz(0)
+  validatedBy    String?   @db.VarChar(36)
+  validationNote String?
+
+  createdAt DateTime  @default(now()) @db.Timestamptz(0)
+  updatedAt DateTime  @default(now()) @updatedAt @db.Timestamptz(0)
+  createdBy String?   @db.VarChar(36)
+  updatedBy String?   @db.VarChar(36)
+  deletedAt DateTime? @db.Timestamptz(0)
+
+  workOrder   WorkOrder                @relation(fields: [workOrderId], references: [id], onDelete: Cascade, map: "laporan_har_gh_wo_fk")
+  location    Location                 @relation(fields: [locationId], references: [id], onUpdate: Restrict, map: "laporan_har_gh_location_fk")
+  feeder      Feeder?                  @relation(fields: [feederId], references: [id], onUpdate: Restrict, map: "laporan_har_gh_feeder_fk")
+  inspector   User?                    @relation("LaporanHarGhInspector", fields: [inspectorId], references: [id], onUpdate: Restrict, map: "laporan_har_gh_inspector_fk")
+  attachments LaporanHarGhAttachment[]
+
+  @@index([locationId], map: "idx_laporan_har_gh_location")
+  @@index([workOrderId], map: "idx_laporan_har_gh_wo")
+  @@index([status], map: "idx_laporan_har_gh_status")
+  @@map("laporan_har_gh")
+}
+
+// FASE GH-attach. Attachment untuk Laporan Inspeksi GH & HAR GH.
+// Reuse enum GiAttachmentCategory/GiAttachmentStatus (tidak bikin enum baru).
+model LaporanInspeksiGhAttachment {
+  id                  String               @id @default(uuid()) @db.VarChar(36)
+  laporanInspeksiGhId String               @db.VarChar(36)
+  category            GiAttachmentCategory
+  status              GiAttachmentStatus   @default(READY)
+  fileName            String               @db.VarChar(255)
+  originalName        String               @db.VarChar(255)
+  mimeType            String               @db.VarChar(100)
+  fileSize            Int
+  filePath            String               @db.VarChar(500)
+  originalPath        String?              @db.VarChar(500)
+  thumbnailPath       String?              @db.VarChar(500)
+  durationSec         Int?
+  errorMessage        String?              @db.VarChar(500)
+  uploadedById        String?              @db.VarChar(36)
+  createdAt           DateTime             @default(now()) @db.Timestamptz(0)
+  updatedAt           DateTime             @default(now()) @updatedAt @db.Timestamptz(0)
+  deletedAt           DateTime?            @db.Timestamptz(0)
+
+  laporan LaporanInspeksiGh @relation(fields: [laporanInspeksiGhId], references: [id], onDelete: Cascade, map: "laporan_inspeksi_gh_attachments_parent_fk")
+
+  @@index([laporanInspeksiGhId], map: "idx_laporan_inspeksi_gh_attachments_parent")
+  @@index([laporanInspeksiGhId, category], map: "idx_laporan_inspeksi_gh_attachments_parent_category")
+  @@index([status], map: "idx_laporan_inspeksi_gh_attachments_status")
+  @@map("laporan_inspeksi_gh_attachments")
+}
+
+model LaporanHarGhAttachment {
+  id             String               @id @default(uuid()) @db.VarChar(36)
+  laporanHarGhId String               @db.VarChar(36)
+  category       GiAttachmentCategory
+  status         GiAttachmentStatus   @default(READY)
+  fileName       String               @db.VarChar(255)
+  originalName   String               @db.VarChar(255)
+  mimeType       String               @db.VarChar(100)
+  fileSize       Int
+  filePath       String               @db.VarChar(500)
+  originalPath   String?              @db.VarChar(500)
+  thumbnailPath  String?              @db.VarChar(500)
+  durationSec    Int?
+  errorMessage   String?              @db.VarChar(500)
+  uploadedById   String?              @db.VarChar(36)
+  createdAt      DateTime             @default(now()) @db.Timestamptz(0)
+  updatedAt      DateTime             @default(now()) @updatedAt @db.Timestamptz(0)
+  deletedAt      DateTime?            @db.Timestamptz(0)
+
+  laporan LaporanHarGh @relation(fields: [laporanHarGhId], references: [id], onDelete: Cascade, map: "laporan_har_gh_attachments_parent_fk")
+
+  @@index([laporanHarGhId], map: "idx_laporan_har_gh_attachments_parent")
+  @@index([laporanHarGhId, category], map: "idx_laporan_har_gh_attachments_parent_category")
+  @@index([status], map: "idx_laporan_har_gh_attachments_status")
+  @@map("laporan_har_gh_attachments")
+}
+
+// FASE MP. Laporan Gardu Distribusi / Metering Point (RTUPP2-5).
+// Mirror LaporanInspeksiGh/LaporanHarGh; beda: locationId=GARDU, feederId
+// auto-fill dari Location.supplyFeederId (1 feeder per gardu, bukan array),
+// kubikel = array dinamis manual (namaGardu diisi petugas, bukan dari DB feeders).
+// Reuse enum GiReportStatus (tidak bikin enum baru).
+model LaporanInspeksiMp {
+  id          String   @id @default(uuid()) @db.VarChar(36)
+  workOrderId String   @db.VarChar(36)
+  locationId  String   @db.VarChar(36)
+  feederId    String?  @db.VarChar(36)
+  up3         String?  @db.VarChar(150)
+  reportDate  DateTime @db.Date
+  pelaksana   String?  @db.VarChar(255)
+  inspectorId String?  @db.VarChar(36)
+
+  status GiReportStatus @default(DRAFT)
+
+  // Promoted Scalars
+  statusRc            String? @db.VarChar(50)
+  statusCubicle       String? @db.VarChar(50)
+  statusCubicleMaster String? @db.VarChar(50)
+  statusLr            String? @db.VarChar(50)
+  statusLrMaster      String? @db.VarChar(50)
+
+  // JSON payloads
+  supplyTr  Json?
+  rectifier Json?
+  baterai   Json?
+  rtu       Json?
+  media1    Json?
+  media2    Json?
+  kubikel   Json?
+  fdiRelay  Json?
+  aco       Json?
+
+  notes   String?
+  catatan String?
+
+  // Approval
+  submittedAt    DateTime? @db.Timestamptz(0)
+  validatedAt    DateTime? @db.Timestamptz(0)
+  validatedBy    String?   @db.VarChar(36)
+  validationNote String?
+
+  createdAt DateTime  @default(now()) @db.Timestamptz(0)
+  updatedAt DateTime  @default(now()) @updatedAt @db.Timestamptz(0)
+  createdBy String?   @db.VarChar(36)
+  updatedBy String?   @db.VarChar(36)
+  deletedAt DateTime? @db.Timestamptz(0)
+
+  workOrder   WorkOrder                     @relation(fields: [workOrderId], references: [id], onDelete: Cascade, map: "laporan_inspeksi_mp_wo_fk")
+  location    Location                      @relation(fields: [locationId], references: [id], onUpdate: Restrict, map: "laporan_inspeksi_mp_location_fk")
+  feeder      Feeder?                       @relation(fields: [feederId], references: [id], onUpdate: Restrict, map: "laporan_inspeksi_mp_feeder_fk")
+  inspector   User?                         @relation("LaporanInspeksiMpInspector", fields: [inspectorId], references: [id], onUpdate: Restrict, map: "laporan_inspeksi_mp_inspector_fk")
+  attachments LaporanInspeksiMpAttachment[]
+
+  @@index([locationId], map: "idx_laporan_inspeksi_mp_location")
+  @@index([workOrderId], map: "idx_laporan_inspeksi_mp_wo")
+  @@index([status], map: "idx_laporan_inspeksi_mp_status")
+  @@map("laporan_inspeksi_mp")
+}
+
+model LaporanHarMp {
+  id          String   @id @default(uuid()) @db.VarChar(36)
+  workOrderId String   @db.VarChar(36)
+  locationId  String   @db.VarChar(36)
+  feederId    String?  @db.VarChar(36)
+  up3         String?  @db.VarChar(150)
+  reportDate  DateTime @db.Date
+  pelaksana   String?  @db.VarChar(255)
+  inspectorId String?  @db.VarChar(36)
+
+  status GiReportStatus @default(DRAFT)
+
+  // Promoted Scalars
+  statusRc            String? @db.VarChar(50)
+  statusCubicle       String? @db.VarChar(50)
+  statusCubicleMaster String? @db.VarChar(50)
+  statusLr            String? @db.VarChar(50)
+  statusLrMaster      String? @db.VarChar(50)
+
+  // HAR specific scalars
+  statusGarduSebelum String? @db.VarChar(50)
+  statusGarduSesudah String? @db.VarChar(50)
+  statusPekerjaan    String? @db.VarChar(50)
+  penyebabGangguan   Json?
+
+  // JSON payloads
+  supplyTr   Json?
+  rectifier  Json?
+  baterai    Json?
+  rtu        Json?
+  media1     Json?
+  media2     Json?
+  kubikel    Json?
+  fdiRelay   Json?
+  aco        Json?
+  penanganan Json?
+
+  notes   String?
+  catatan String?
+
+  // Approval
+  submittedAt    DateTime? @db.Timestamptz(0)
+  validatedAt    DateTime? @db.Timestamptz(0)
+  validatedBy    String?   @db.VarChar(36)
+  validationNote String?
+
+  createdAt DateTime  @default(now()) @db.Timestamptz(0)
+  updatedAt DateTime  @default(now()) @updatedAt @db.Timestamptz(0)
+  createdBy String?   @db.VarChar(36)
+  updatedBy String?   @db.VarChar(36)
+  deletedAt DateTime? @db.Timestamptz(0)
+
+  workOrder   WorkOrder                @relation(fields: [workOrderId], references: [id], onDelete: Cascade, map: "laporan_har_mp_wo_fk")
+  location    Location                 @relation(fields: [locationId], references: [id], onUpdate: Restrict, map: "laporan_har_mp_location_fk")
+  feeder      Feeder?                  @relation(fields: [feederId], references: [id], onUpdate: Restrict, map: "laporan_har_mp_feeder_fk")
+  inspector   User?                    @relation("LaporanHarMpInspector", fields: [inspectorId], references: [id], onUpdate: Restrict, map: "laporan_har_mp_inspector_fk")
+  attachments LaporanHarMpAttachment[]
+
+  @@index([locationId], map: "idx_laporan_har_mp_location")
+  @@index([workOrderId], map: "idx_laporan_har_mp_wo")
+  @@index([status], map: "idx_laporan_har_mp_status")
+  @@map("laporan_har_mp")
+}
+
+// Reuse enum GiAttachmentCategory/GiAttachmentStatus (tidak bikin enum baru).
+model LaporanInspeksiMpAttachment {
+  id                  String               @id @default(uuid()) @db.VarChar(36)
+  laporanInspeksiMpId String               @db.VarChar(36)
+  category            GiAttachmentCategory
+  status              GiAttachmentStatus   @default(READY)
+  fileName            String               @db.VarChar(255)
+  originalName        String               @db.VarChar(255)
+  mimeType            String               @db.VarChar(100)
+  fileSize            Int
+  filePath            String               @db.VarChar(500)
+  originalPath        String?              @db.VarChar(500)
+  thumbnailPath       String?              @db.VarChar(500)
+  durationSec         Int?
+  errorMessage        String?              @db.VarChar(500)
+  uploadedById        String?              @db.VarChar(36)
+  createdAt           DateTime             @default(now()) @db.Timestamptz(0)
+  updatedAt           DateTime             @default(now()) @updatedAt @db.Timestamptz(0)
+  deletedAt           DateTime?            @db.Timestamptz(0)
+
+  laporan LaporanInspeksiMp @relation(fields: [laporanInspeksiMpId], references: [id], onDelete: Cascade, map: "laporan_inspeksi_mp_attachments_parent_fk")
+
+  @@index([laporanInspeksiMpId], map: "idx_laporan_inspeksi_mp_attachments_parent")
+  @@index([laporanInspeksiMpId, category], map: "idx_laporan_inspeksi_mp_attachments_parent_category")
+  @@index([status], map: "idx_laporan_inspeksi_mp_attachments_status")
+  @@map("laporan_inspeksi_mp_attachments")
+}
+
+model LaporanHarMpAttachment {
+  id             String               @id @default(uuid()) @db.VarChar(36)
+  laporanHarMpId String               @db.VarChar(36)
+  category       GiAttachmentCategory
+  status         GiAttachmentStatus   @default(READY)
+  fileName       String               @db.VarChar(255)
+  originalName   String               @db.VarChar(255)
+  mimeType       String               @db.VarChar(100)
+  fileSize       Int
+  filePath       String               @db.VarChar(500)
+  originalPath   String?              @db.VarChar(500)
+  thumbnailPath  String?              @db.VarChar(500)
+  durationSec    Int?
+  errorMessage   String?              @db.VarChar(500)
+  uploadedById   String?              @db.VarChar(36)
+  createdAt      DateTime             @default(now()) @db.Timestamptz(0)
+  updatedAt      DateTime             @default(now()) @updatedAt @db.Timestamptz(0)
+  deletedAt      DateTime?            @db.Timestamptz(0)
+
+  laporan LaporanHarMp @relation(fields: [laporanHarMpId], references: [id], onDelete: Cascade, map: "laporan_har_mp_attachments_parent_fk")
+
+  @@index([laporanHarMpId], map: "idx_laporan_har_mp_attachments_parent")
+  @@index([laporanHarMpId, category], map: "idx_laporan_har_mp_attachments_parent_category")
+  @@index([status], map: "idx_laporan_har_mp_attachments_status")
+  @@map("laporan_har_mp_attachments")
+}
+
+// ============================================================
+// SCADA Snapshot (Siemens Spectrum Power 7 daily export)
+// ============================================================
+// The NOC team exports two files from SP7 every day:
+//   csd_IFS-IFS_RTUs*.xlsx  → per-gardu RTU state  (fileType "RTU")
+//   csd_IFS-IFS_Lines*.xlsx → per-channel IFS state (fileType "LINES")
+// Oper State UP = Inscan, DOWN = OOP. Each upload REPLACES the previous
+// snapshot of the same fileType (delete-then-insert in one transaction), so at
+// most one live snapshot exists per type; rows cascade with their snapshot.
+
+model ScadaSnapshot {
+  id         String   @id @default(cuid()) @db.VarChar(36)
+  uploadedAt DateTime @default(now()) @db.Timestamptz(0)
+  uploadedBy String   @db.VarChar(36)
+  uploader   User     @relation(fields: [uploadedBy], references: [id], map: "scada_snapshots_uploader_fk")
+  fileType   String   @db.VarChar(10) // "RTU" | "LINES"
+  totalRows  Int
+  totalUp    Int
+  totalDown  Int
+  notes      String?
+
+  rtuRows  ScadaRtuRow[]
+  lineRows ScadaLineRow[]
+
+  // Latest-per-type lookup (every read endpoint starts from it).
+  @@index([fileType, uploadedAt], map: "idx_scada_snapshots_type_at")
+  @@index([uploadedBy], map: "idx_scada_snapshots_uploader")
+  @@map("scada_snapshots")
+}
+
+model ScadaRtuRow {
+  id         String        @id @default(cuid()) @db.VarChar(36)
+  snapshotId String        @db.VarChar(36)
+  snapshot   ScadaSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade, map: "scada_rtu_rows_snapshot_fk")
+
+  rtuName        String  @db.VarChar(100) // kolom "RTU Name"
+  rtuText        String? @db.VarChar(255) // kolom "RTU Text"
+  operState      String  @db.VarChar(10) // "UP" | "DOWN"
+  adminState     String? @db.VarChar(10) // "ON" | "OFF"
+  protocol       String? @db.VarChar(20) // "IEC104" | "IEC101u"
+  pairNr         Int?
+  channelPrimary Int?
+  server         String? @db.VarChar(50) // "gbr12ifs(12)" dst
+  asdu           String? @db.VarChar(50)
+
+  // Link ke Location jika rtuName match Location.code (case-insensitive).
+  // Banyak yang tidak match (penamaan Siemens ≠ kode gardu) — null = normal.
+  locationId String?   @db.VarChar(36)
+  location   Location? @relation(fields: [locationId], references: [id], map: "scada_rtu_rows_location_fk")
+
+  @@index([snapshotId], map: "idx_scada_rtu_rows_snapshot")
+  @@index([rtuName], map: "idx_scada_rtu_rows_name")
+  @@index([operState], map: "idx_scada_rtu_rows_oper_state")
+  @@index([locationId], map: "idx_scada_rtu_rows_location")
+  @@map("scada_rtu_rows")
+}
+
+model ScadaLineRow {
+  id         String        @id @default(cuid()) @db.VarChar(36)
+  snapshotId String        @db.VarChar(36)
+  snapshot   ScadaSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade, map: "scada_line_rows_snapshot_fk")
+
+  pairId      Int?
+  channelId   Int?
+  ifsServer   String? @db.VarChar(50) // "gbr11ifs(11)" | "gbr12ifs(12)"
+  channelName String? @db.VarChar(100)
+  channelText String? @db.VarChar(255)
+  adminState  String? @db.VarChar(10)
+  // "UP" | "DOWN" — null untuk slot channel UNASG yang tidak membawa Oper
+  // State di export SP7 (mayoritas baris; tetap disimpan agar file terbaca utuh).
+  operState   String? @db.VarChar(10)
+  assigned    String? @db.VarChar(10) // "ASG" | "UNASG"
+  dataXfr     String? @db.VarChar(10) // "ON" | "OFF"
+  deviceType  String? @db.VarChar(30)
+  ipAddr      String? @db.VarChar(100)
+  port        String? @db.VarChar(50)
+
+  @@index([snapshotId], map: "idx_scada_line_rows_snapshot")
+  @@index([operState], map: "idx_scada_line_rows_oper_state")
+  @@index([ifsServer], map: "idx_scada_line_rows_ifs_server")
+  @@map("scada_line_rows")
+}

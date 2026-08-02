@@ -1,0 +1,109 @@
+name: E2E
+
+# Full end-to-end suite: real MySQL + backend + frontend + Playwright.
+# Heavier/slower than CI, so it runs on demand and on pushes to main.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: Playwright E2E (full stack)
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: voltreport
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -uroot -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    env:
+      # Backend config for the E2E run.
+      DATABASE_URL: "mysql://root:root@127.0.0.1:3306/voltreport"
+      JWT_SECRET: "ci-e2e-access-secret-please-change-0123456789"
+      JWT_REFRESH_SECRET: "ci-e2e-refresh-secret-please-change-0123456789"
+      PORT: "3001"
+      CORS_ORIGIN: "http://localhost:5173"
+      # Frontend points at the backend started below.
+      VITE_API_URL: "http://localhost:3001/api"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # ── Backend: install, migrate, seed, start ────────────────────────────
+      - name: Install backend deps
+        working-directory: BE
+        run: npm ci
+
+      - name: Generate Prisma client
+        working-directory: BE
+        run: npx prisma generate
+
+      - name: Apply migrations
+        working-directory: BE
+        run: npx prisma migrate deploy
+
+      - name: Seed database
+        working-directory: BE
+        # `seed` builds base data (RTUPP, org tree, taxonomy) + GIS E2E fixtures;
+        # `reset:roles` then provisions the canonical MASTER/MANAGER/ADMIN/PETUGAS
+        # accounts with the password the Playwright credentials expect
+        # (Volthub123!) and re-applies the GIS fixtures under the scoped PETUGAS
+        # tenant. Both are idempotent.
+        run: |
+          npm run seed
+          npm run reset:roles
+
+      - name: Start backend
+        working-directory: BE
+        run: |
+          npm run dev &
+          echo "Waiting for backend health..."
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:3001/health >/dev/null 2>&1; then
+              echo "Backend is up"; exit 0
+            fi
+            sleep 2
+          done
+          echo "Backend failed to start"; exit 1
+
+      # ── Frontend: install + Playwright ────────────────────────────────────
+      - name: Install frontend deps
+        working-directory: FE
+        run: npm ci
+
+      - name: Install Playwright browsers
+        working-directory: FE
+        run: npx playwright install --with-deps chromium
+
+      - name: Run E2E tests
+        working-directory: FE
+        run: npm run test:e2e
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            FE/playwright-report
+            FE/test-results
+          if-no-files-found: ignore

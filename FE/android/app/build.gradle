@@ -1,0 +1,74 @@
+apply plugin: 'com.android.application'
+
+android {
+    namespace = "id.pln.voltreport"
+    compileSdk = rootProject.ext.compileSdkVersion
+    defaultConfig {
+        applicationId "id.pln.voltreport"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode 1
+        versionName "1.0"
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        aaptOptions {
+             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
+             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
+            ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+        }
+    }
+    // Release signing. Credentials are read from environment variables (CI
+    // secrets) or ~/.gradle / gradle.properties — NEVER committed. When no
+    // keystore is configured (local dev, CI smoke builds) the release build
+    // falls back to debug signing instead of failing, so `assembleRelease`
+    // always works. To produce a Play-Store-ready signed APK/AAB, provide:
+    //   RELEASE_STORE_FILE, RELEASE_STORE_PASSWORD, RELEASE_KEY_ALIAS, RELEASE_KEY_PASSWORD
+    def releaseStoreFile = System.getenv('RELEASE_STORE_FILE') ?: project.findProperty('RELEASE_STORE_FILE')
+    signingConfigs {
+        release {
+            if (releaseStoreFile) {
+                storeFile file(releaseStoreFile)
+                storePassword System.getenv('RELEASE_STORE_PASSWORD') ?: project.findProperty('RELEASE_STORE_PASSWORD')
+                keyAlias System.getenv('RELEASE_KEY_ALIAS') ?: project.findProperty('RELEASE_KEY_ALIAS')
+                keyPassword System.getenv('RELEASE_KEY_PASSWORD') ?: project.findProperty('RELEASE_KEY_PASSWORD')
+            }
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            // Use the real release keystore when present; otherwise keep the
+            // default debug signing so the build still succeeds.
+            signingConfig releaseStoreFile ? signingConfigs.release : signingConfigs.debug
+        }
+    }
+}
+
+repositories {
+    flatDir{
+        dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
+    }
+}
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
+    implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    implementation project(':capacitor-android')
+    testImplementation "junit:junit:$junitVersion"
+    androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
+    androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
+    implementation project(':capacitor-cordova-android-plugins')
+}
+
+apply from: 'capacitor.build.gradle'
+
+try {
+    def servicesJSON = file('google-services.json')
+    if (servicesJSON.text) {
+        apply plugin: 'com.google.gms.google-services'
+    }
+} catch(Exception e) {
+    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+}

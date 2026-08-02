@@ -1,0 +1,1802 @@
+{
+  "info": {
+    "name": "VoltReport V2 API",
+    "_postman_id": "voltreport-v2-collection",
+    "description": "VoltReport V2 Asset Management API (Sprint 1-6). Auto-generated from OpenAPI 3.0.3 spec. Run Authentication > login first to populate {{accessToken}}.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "POST /auth/login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "if (j && j.data && j.data.accessToken) {",
+                  "  pm.collectionVariables.set('accessToken', j.data.accessToken);",
+                  "  pm.collectionVariables.set('refreshToken', j.data.refreshToken || '');",
+                  "  console.log('accessToken saved');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"superadmin@voltreport.com\",\n  \"password\": \"password123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Login (V1 auth). Saves accessToken to collection variable for all V2 requests."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Locations",
+      "item": [
+        {
+          "name": "GET /locations",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{v1Url}}/locations",
+              "host": [
+                "{{v1Url}}"
+              ],
+              "path": [
+                "locations"
+              ],
+              "variable": [],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "type",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List location"
+          },
+          "response": []
+        },
+        {
+          "name": "POST /locations",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{v1Url}}/locations",
+              "host": [
+                "{{v1Url}}"
+              ],
+              "path": [
+                "locations"
+              ],
+              "variable": []
+            },
+            "description": "Create location (roles: SUPERADMIN, ADMIN)",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"\",\n  \"name\": \"\",\n  \"locationType\": \"GI\",\n  \"up3\": \"\",\n  \"address\": \"\",\n  \"latitude\": 0,\n  \"longitude\": 0,\n  \"status\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /locations/{id}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{v1Url}}/locations/:id",
+              "host": [
+                "{{v1Url}}"
+              ],
+              "path": [
+                "locations",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}"
+                }
+              ]
+            },
+            "description": "Get location by id"
+          },
+          "response": []
+        },
+        {
+          "name": "PUT /locations/{id}",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{v1Url}}/locations/:id",
+              "host": [
+                "{{v1Url}}"
+              ],
+              "path": [
+                "locations",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}"
+                }
+              ]
+            },
+            "description": "Update location (roles: SUPERADMIN, ADMIN)",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"\",\n  \"name\": \"\",\n  \"locationType\": \"GI\",\n  \"up3\": \"\",\n  \"address\": \"\",\n  \"latitude\": 0,\n  \"longitude\": 0,\n  \"status\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE /locations/{id}",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{v1Url}}/locations/:id",
+              "host": [
+                "{{v1Url}}"
+              ],
+              "path": [
+                "locations",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}"
+                }
+              ]
+            },
+            "description": "Soft delete location (roles: SUPERADMIN, ADMIN)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Feeders",
+      "item": [
+        {
+          "name": "GET /feeders",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{v1Url}}/feeders",
+              "host": [
+                "{{v1Url}}"
+              ],
+              "path": [
+                "feeders"
+              ],
+              "variable": [],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "locationId",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List feeder"
+          },
+          "response": []
+        },
+        {
+          "name": "POST /feeders",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{v1Url}}/feeders",
+              "host": [
+                "{{v1Url}}"
+              ],
+              "path": [
+                "feeders"
+              ],
+              "variable": []
+            },
+            "description": "Create feeder (roles: SUPERADMIN, ADMIN)",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"locationId\": \"{{id}}\",\n  \"feederCode\": \"\",\n  \"feederName\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /feeders/{id}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{v1Url}}/feeders/:id",
+              "host": [
+                "{{v1Url}}"
+              ],
+              "path": [
+                "feeders",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}"
+                }
+              ]
+            },
+            "description": "Get feeder by id"
+          },
+          "response": []
+        },
+        {
+          "name": "PUT /feeders/{id}",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{v1Url}}/feeders/:id",
+              "host": [
+                "{{v1Url}}"
+              ],
+              "path": [
+                "feeders",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}"
+                }
+              ]
+            },
+            "description": "Update feeder (roles: SUPERADMIN, ADMIN)",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"locationId\": \"{{id}}\",\n  \"feederCode\": \"\",\n  \"feederName\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE /feeders/{id}",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{v1Url}}/feeders/:id",
+              "host": [
+                "{{v1Url}}"
+              ],
+              "path": [
+                "feeders",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}"
+                }
+              ]
+            },
+            "description": "Soft delete feeder (roles: SUPERADMIN, ADMIN)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Assets",
+      "item": [
+        {
+          "name": "GET /assets",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{v1Url}}/assets",
+              "host": [
+                "{{v1Url}}"
+              ],
+              "path": [
+                "assets"
+              ],
+              "variable": [],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "assetType",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "locationId",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List asset"
+          },
+          "response": []
+        },
+        {
+          "name": "POST /assets",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{v1Url}}/assets",
+              "host": [
+                "{{v1Url}}"
+              ],
+              "path": [
+                "assets"
+              ],
+              "variable": []
+            },
+            "description": "Create asset (roles: SUPERADMIN, ADMIN, ADMIN_RTUPP)",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"locationId\": \"{{id}}\",\n  \"feederId\": \"{{id}}\",\n  \"parentAssetId\": \"{{id}}\",\n  \"assetType\": \"RTU\",\n  \"assetCode\": \"\",\n  \"assetName\": \"\",\n  \"brand\": \"\",\n  \"model\": \"\",\n  \"serialNumber\": \"\",\n  \"tahunOperasi\": 0,\n  \"status\": \"ACTIVE\",\n  \"notes\": \"\",\n  \"protocol\": \"\",\n  \"asdu\": \"\",\n  \"linkAddress\": \"\",\n  \"pairChannel\": \"\",\n  \"masterIp1\": \"\",\n  \"masterIp2\": \"\",\n  \"batteryCount\": 0,\n  \"capacity\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /assets/{id}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{v1Url}}/assets/:id",
+              "host": [
+                "{{v1Url}}"
+              ],
+              "path": [
+                "assets",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}"
+                }
+              ]
+            },
+            "description": "Get asset by id"
+          },
+          "response": []
+        },
+        {
+          "name": "PUT /assets/{id}",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{v1Url}}/assets/:id",
+              "host": [
+                "{{v1Url}}"
+              ],
+              "path": [
+                "assets",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}"
+                }
+              ]
+            },
+            "description": "Update asset (roles: SUPERADMIN, ADMIN, ADMIN_RTUPP)",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"locationId\": \"{{id}}\",\n  \"feederId\": \"{{id}}\",\n  \"parentAssetId\": \"{{id}}\",\n  \"assetType\": \"RTU\",\n  \"assetCode\": \"\",\n  \"assetName\": \"\",\n  \"brand\": \"\",\n  \"model\": \"\",\n  \"serialNumber\": \"\",\n  \"tahunOperasi\": 0,\n  \"status\": \"ACTIVE\",\n  \"notes\": \"\",\n  \"protocol\": \"\",\n  \"asdu\": \"\",\n  \"linkAddress\": \"\",\n  \"pairChannel\": \"\",\n  \"masterIp1\": \"\",\n  \"masterIp2\": \"\",\n  \"batteryCount\": 0,\n  \"capacity\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE /assets/{id}",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{v1Url}}/assets/:id",
+              "host": [
+                "{{v1Url}}"
+              ],
+              "path": [
+                "assets",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}"
+                }
+              ]
+            },
+            "description": "Soft delete asset (roles: SUPERADMIN, ADMIN, ADMIN_RTUPP)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Asset SIM Cards",
+      "item": [
+        {
+          "name": "GET /assets/{assetId}/sim-cards",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{v1Url}}/assets/:assetId/sim-cards",
+              "host": [
+                "{{v1Url}}"
+              ],
+              "path": [
+                "assets",
+                ":assetId",
+                "sim-cards"
+              ],
+              "variable": [
+                {
+                  "key": "assetId",
+                  "value": "{{assetId}}"
+                }
+              ]
+            },
+            "description": "List SIM cards of an asset"
+          },
+          "response": []
+        },
+        {
+          "name": "POST /assets/{assetId}/sim-cards",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{v1Url}}/assets/:assetId/sim-cards",
+              "host": [
+                "{{v1Url}}"
+              ],
+              "path": [
+                "assets",
+                ":assetId",
+                "sim-cards"
+              ],
+              "variable": [
+                {
+                  "key": "assetId",
+                  "value": "{{assetId}}"
+                }
+              ]
+            },
+            "description": "Add SIM card to asset (roles: SUPERADMIN, ADMIN, ADMIN_RTUPP)",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"simSlot\": 0,\n  \"provider\": \"\",\n  \"phoneNumber\": \"\",\n  \"iccid\": \"\",\n  \"ipAddress\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PUT /sim-cards/{id}",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{v1Url}}/sim-cards/:id",
+              "host": [
+                "{{v1Url}}"
+              ],
+              "path": [
+                "sim-cards",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}"
+                }
+              ]
+            },
+            "description": "Update SIM card (roles: SUPERADMIN, ADMIN, ADMIN_RTUPP)",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"simSlot\": 0,\n  \"provider\": \"\",\n  \"phoneNumber\": \"\",\n  \"iccid\": \"\",\n  \"ipAddress\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE /sim-cards/{id}",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{v1Url}}/sim-cards/:id",
+              "host": [
+                "{{v1Url}}"
+              ],
+              "path": [
+                "sim-cards",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}"
+                }
+              ]
+            },
+            "description": "Delete SIM card (roles: SUPERADMIN, ADMIN, ADMIN_RTUPP)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Communication Media",
+      "item": [
+        {
+          "name": "GET /communication-media",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{v1Url}}/communication-media",
+              "host": [
+                "{{v1Url}}"
+              ],
+              "path": [
+                "communication-media"
+              ],
+              "variable": [],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "locationId",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "mediaType",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List communication media"
+          },
+          "response": []
+        },
+        {
+          "name": "POST /communication-media",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{v1Url}}/communication-media",
+              "host": [
+                "{{v1Url}}"
+              ],
+              "path": [
+                "communication-media"
+              ],
+              "variable": []
+            },
+            "description": "Create communication media (roles: SUPERADMIN, ADMIN, ADMIN_RTUPP)",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"locationId\": \"{{id}}\",\n  \"mediaType\": \"GSM_4G\",\n  \"provider\": \"\",\n  \"status\": true,\n  \"notes\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /communication-media/{id}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{v1Url}}/communication-media/:id",
+              "host": [
+                "{{v1Url}}"
+              ],
+              "path": [
+                "communication-media",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}"
+                }
+              ]
+            },
+            "description": "Get communication media by id"
+          },
+          "response": []
+        },
+        {
+          "name": "PUT /communication-media/{id}",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{v1Url}}/communication-media/:id",
+              "host": [
+                "{{v1Url}}"
+              ],
+              "path": [
+                "communication-media",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}"
+                }
+              ]
+            },
+            "description": "Update communication media (roles: SUPERADMIN, ADMIN, ADMIN_RTUPP)",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"locationId\": \"{{id}}\",\n  \"mediaType\": \"GSM_4G\",\n  \"provider\": \"\",\n  \"status\": true,\n  \"notes\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE /communication-media/{id}",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{v1Url}}/communication-media/:id",
+              "host": [
+                "{{v1Url}}"
+              ],
+              "path": [
+                "communication-media",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}"
+                }
+              ]
+            },
+            "description": "Soft delete communication media (roles: SUPERADMIN, ADMIN, ADMIN_RTUPP)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Inspections",
+      "item": [
+        {
+          "name": "GET /inspections",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{v1Url}}/inspections",
+              "host": [
+                "{{v1Url}}"
+              ],
+              "path": [
+                "inspections"
+              ],
+              "variable": [],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "locationId",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List inspections"
+          },
+          "response": []
+        },
+        {
+          "name": "POST /inspections",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{v1Url}}/inspections",
+              "host": [
+                "{{v1Url}}"
+              ],
+              "path": [
+                "inspections"
+              ],
+              "variable": []
+            },
+            "description": "Create inspection (any authenticated role; inspector = current user)",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"locationId\": \"{{id}}\",\n  \"inspectionDate\": \"2026-06-01\",\n  \"notes\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /inspections/{id}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{v1Url}}/inspections/:id",
+              "host": [
+                "{{v1Url}}"
+              ],
+              "path": [
+                "inspections",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}"
+                }
+              ]
+            },
+            "description": "Get inspection (with findings + photos)"
+          },
+          "response": []
+        },
+        {
+          "name": "POST /inspections/{id}/findings",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{v1Url}}/inspections/:id/findings",
+              "host": [
+                "{{v1Url}}"
+              ],
+              "path": [
+                "inspections",
+                ":id",
+                "findings"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}"
+                }
+              ]
+            },
+            "description": "Add finding to inspection",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"assetId\": \"{{id}}\",\n  \"status\": \"NORMAL\",\n  \"finding\": \"\",\n  \"recommendation\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /findings/{id}/photos",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{v1Url}}/findings/:id/photos",
+              "host": [
+                "{{v1Url}}"
+              ],
+              "path": [
+                "findings",
+                ":id",
+                "photos"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}"
+                }
+              ]
+            },
+            "description": "Upload photo to a finding (multipart/form-data)",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "photo",
+                  "type": "file",
+                  "src": []
+                },
+                {
+                  "key": "caption",
+                  "type": "text",
+                  "value": ""
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "HAR",
+      "item": [
+        {
+          "name": "GET /har-reports",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{v1Url}}/har-reports",
+              "host": [
+                "{{v1Url}}"
+              ],
+              "path": [
+                "har-reports"
+              ],
+              "variable": [],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "locationId",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List HAR reports"
+          },
+          "response": []
+        },
+        {
+          "name": "POST /har-reports",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{v1Url}}/har-reports",
+              "host": [
+                "{{v1Url}}"
+              ],
+              "path": [
+                "har-reports"
+              ],
+              "variable": []
+            },
+            "description": "Create HAR report (any authenticated role)",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"locationId\": \"{{id}}\",\n  \"reportDate\": \"2026-06-01\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /har-reports/{id}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{v1Url}}/har-reports/:id",
+              "host": [
+                "{{v1Url}}"
+              ],
+              "path": [
+                "har-reports",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}"
+                }
+              ]
+            },
+            "description": "Get HAR report (with details)"
+          },
+          "response": []
+        },
+        {
+          "name": "POST /har-reports/{id}/details",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{v1Url}}/har-reports/:id/details",
+              "host": [
+                "{{v1Url}}"
+              ],
+              "path": [
+                "har-reports",
+                ":id",
+                "details"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}"
+                }
+              ]
+            },
+            "description": "Add asset-status detail to HAR (one detail per asset per report)",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"assetId\": \"{{id}}\",\n  \"status\": \"NORMAL\",\n  \"analysis\": \"\",\n  \"notes\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PUT /har-reports/{id}/details/{detailId}",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{v1Url}}/har-reports/:id/details/:detailId",
+              "host": [
+                "{{v1Url}}"
+              ],
+              "path": [
+                "har-reports",
+                ":id",
+                "details",
+                ":detailId"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}"
+                },
+                {
+                  "key": "detailId",
+                  "value": "{{detailId}}"
+                }
+              ]
+            },
+            "description": "Update HAR detail (roles: SUPERADMIN, ADMIN, ADMIN_RTUPP)",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"NORMAL\",\n  \"analysis\": \"\",\n  \"notes\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE /har-reports/{id}/details/{detailId}",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{v1Url}}/har-reports/:id/details/:detailId",
+              "host": [
+                "{{v1Url}}"
+              ],
+              "path": [
+                "har-reports",
+                ":id",
+                "details",
+                ":detailId"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}"
+                },
+                {
+                  "key": "detailId",
+                  "value": "{{detailId}}"
+                }
+              ]
+            },
+            "description": "Delete HAR detail (roles: SUPERADMIN, ADMIN, ADMIN_RTUPP)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Documents",
+      "item": [
+        {
+          "name": "GET /documents",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{v1Url}}/documents",
+              "host": [
+                "{{v1Url}}"
+              ],
+              "path": [
+                "documents"
+              ],
+              "variable": [],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "locationId",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "assetId",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "documentType",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List documents"
+          },
+          "response": []
+        },
+        {
+          "name": "POST /documents",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{v1Url}}/documents",
+              "host": [
+                "{{v1Url}}"
+              ],
+              "path": [
+                "documents"
+              ],
+              "variable": []
+            },
+            "description": "Upload document (multipart/form-data; any authenticated role)",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": []
+                },
+                {
+                  "key": "documentType",
+                  "type": "text",
+                  "value": "PHOTO"
+                },
+                {
+                  "key": "locationId",
+                  "type": "text",
+                  "value": ""
+                },
+                {
+                  "key": "assetId",
+                  "type": "text",
+                  "value": ""
+                },
+                {
+                  "key": "documentName",
+                  "type": "text",
+                  "value": ""
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /documents/{id}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{v1Url}}/documents/:id",
+              "host": [
+                "{{v1Url}}"
+              ],
+              "path": [
+                "documents",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}"
+                }
+              ]
+            },
+            "description": "Get document by id"
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE /documents/{id}",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{v1Url}}/documents/:id",
+              "host": [
+                "{{v1Url}}"
+              ],
+              "path": [
+                "documents",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}"
+                }
+              ]
+            },
+            "description": "Soft delete document (roles: SUPERADMIN, ADMIN, ADMIN_RTUPP)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Reports",
+      "item": [
+        {
+          "name": "POST /reports/generate/inspection",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{v1Url}}/reports/generate/inspection",
+              "host": [
+                "{{v1Url}}"
+              ],
+              "path": [
+                "reports",
+                "generate",
+                "inspection"
+              ],
+              "variable": []
+            },
+            "description": "Generate Inspection PDF (roles: SUPERADMIN, ADMIN, ADMIN_RTUPP)",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"inspectionId\": \"{{id}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /reports/generate/har",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{v1Url}}/reports/generate/har",
+              "host": [
+                "{{v1Url}}"
+              ],
+              "path": [
+                "reports",
+                "generate",
+                "har"
+              ],
+              "variable": []
+            },
+            "description": "Generate HAR PDF (roles: SUPERADMIN, ADMIN, ADMIN_RTUPP)",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"harReportId\": \"{{id}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /reports/generated",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{v1Url}}/reports/generated",
+              "host": [
+                "{{v1Url}}"
+              ],
+              "path": [
+                "reports",
+                "generated"
+              ],
+              "variable": [],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "locationId",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "reportType",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List generated reports"
+          },
+          "response": []
+        },
+        {
+          "name": "GET /reports/generated/{id}/download",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{v1Url}}/reports/generated/:id/download",
+              "host": [
+                "{{v1Url}}"
+              ],
+              "path": [
+                "reports",
+                "generated",
+                ":id",
+                "download"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}"
+                }
+              ]
+            },
+            "description": "Download generated report PDF"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Imports",
+      "item": [
+        {
+          "name": "POST /imports/assets",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{v1Url}}/imports/assets",
+              "host": [
+                "{{v1Url}}"
+              ],
+              "path": [
+                "imports",
+                "assets"
+              ],
+              "variable": []
+            },
+            "description": "Import assets from Excel (.xlsx) — multipart/form-data",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /imports/jobs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{v1Url}}/imports/jobs",
+              "host": [
+                "{{v1Url}}"
+              ],
+              "path": [
+                "imports",
+                "jobs"
+              ],
+              "variable": [],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List import jobs"
+          },
+          "response": []
+        },
+        {
+          "name": "GET /imports/jobs/{id}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{v1Url}}/imports/jobs/:id",
+              "host": [
+                "{{v1Url}}"
+              ],
+              "path": [
+                "imports",
+                "jobs",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}"
+                }
+              ]
+            },
+            "description": "Get import job summary"
+          },
+          "response": []
+        },
+        {
+          "name": "GET /imports/jobs/{id}/errors",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{v1Url}}/imports/jobs/:id/errors",
+              "host": [
+                "{{v1Url}}"
+              ],
+              "path": [
+                "imports",
+                "jobs",
+                ":id",
+                "errors"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}"
+                }
+              ]
+            },
+            "description": "List per-row errors of an import job"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "AI",
+      "item": [
+        {
+          "name": "GET /ai/assets/search",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{v1Url}}/ai/assets/search",
+              "host": [
+                "{{v1Url}}"
+              ],
+              "path": [
+                "ai",
+                "assets",
+                "search"
+              ],
+              "variable": [],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "KB305",
+                  "disabled": false
+                }
+              ]
+            },
+            "description": "AI-ready asset search by location query"
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "host",
+      "value": "http://localhost:3001"
+    },
+    {
+      "key": "baseUrl",
+      "value": "{{host}}/api"
+    },
+    {
+      "key": "v1Url",
+      "value": "{{baseUrl}}/v1"
+    },
+    {
+      "key": "accessToken",
+      "value": ""
+    },
+    {
+      "key": "refreshToken",
+      "value": ""
+    },
+    {
+      "key": "id",
+      "value": ""
+    },
+    {
+      "key": "assetId",
+      "value": ""
+    },
+    {
+      "key": "detailId",
+      "value": ""
+    }
+  ]
+}
