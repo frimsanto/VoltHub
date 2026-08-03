@@ -85,13 +85,14 @@ jobs:
           retention-days: 7
 
   deploy:
-    runs-on: ubuntu-latest
+    # Runs ON the deploy server itself, so every path below is local — no SSH,
+    # no scp. The build jobs stay on GitHub's cloud runners.
+    runs-on: self-hosted
     needs: [build-backend, build-frontend]
     steps:
-      # This job starts with an empty workspace — it only consumes artifacts, and
-      # the build jobs' checkouts do not carry over. Check out just the two
-      # backend manifests the remote `npm ci --omit=dev` needs. Must run before
-      # the artifact downloads, since checkout cleans the working directory.
+      # This job's workspace does not inherit the build jobs' checkouts. Check
+      # out just the two backend manifests that `npm ci --omit=dev` needs. Must
+      # run before the artifact downloads, since checkout cleans the directory.
       - name: Checkout backend package manifests
         uses: actions/checkout@v4
         with:
@@ -112,79 +113,31 @@ jobs:
           name: frontend-dist
           path: artifacts/frontend-dist
 
-      - name: Setup SSH
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          SSH_HOST: ${{ secrets.SSH_HOST }}
-          SSH_USER: ${{ secrets.SSH_USER }}
-        run: |
-          set -euo pipefail
-          if [ -z "${SSH_HOST:-}" ] || [ -z "${SSH_PRIVATE_KEY:-}" ] || [ -z "${SSH_USER:-}" ]; then
-            echo "Required SSH secrets are not set. Check repository secrets."
-            exit 1
-          fi
-          mkdir -p ~/.ssh
-          chmod 700 ~/.ssh
-          printf '%s\n' "$SSH_PRIVATE_KEY" | sed 's/\r$//' > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -T 5 -H "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
-          if [ ! -s ~/.ssh/known_hosts ]; then
-            echo "ssh-keyscan returned no host key for $SSH_HOST — host unreachable or port 22 blocked."
-            exit 1
-          fi
-          chmod 644 ~/.ssh/known_hosts
-          cat > ~/.ssh/config <<EOF
-          Host deploy-target
-            HostName $SSH_HOST
-            User $SSH_USER
-            IdentityFile ~/.ssh/deploy_key
-            IdentitiesOnly yes
-            StrictHostKeyChecking yes
-            ServerAliveInterval 30
-          EOF
-          chmod 600 ~/.ssh/config
-
-      - name: Prepare remote directories
-        run: |
-          ssh deploy-target "mkdir -p ${{ env.REMOTE_ROOT }}/backend/dist ${{ env.REMOTE_ROOT }}/frontend/dist"
-
-      - name: Copy backend package manifests to server
-        run: |
-          scp BE/package.json BE/package-lock.json deploy-target:${{ env.REMOTE_ROOT }}/backend/
-
       # --delete so stale files from a previous build (renamed modules, old
       # content-hashed Vite chunks) are removed rather than accumulating.
-      - name: Copy backend dist to server
+      - name: Copy backend to server
         run: |
-          rsync -az --delete artifacts/backend-dist/. deploy-target:${{ env.REMOTE_ROOT }}/backend/dist/
+          rsync -az --delete artifacts/backend-dist/. /srv/volthub/backend/dist/
+          cp BE/package.json BE/package-lock.json /srv/volthub/backend/
 
-      - name: Copy frontend dist to server
+      - name: Copy frontend to server
         run: |
-          rsync -az --delete artifacts/frontend-dist/. deploy-target:${{ env.REMOTE_ROOT }}/frontend/dist/
+          rsync -az --delete artifacts/frontend-dist/. /srv/volthub/frontend/dist/
 
-      - name: Release on server
+      - name: Release
         run: |
-          ssh deploy-target 'bash -euo pipefail -s' <<'REMOTE'
-            cd /srv/volthub
-            docker compose up -d
-
-            cd /srv/volthub/backend
-            npm ci --omit=dev --prefix /srv/volthub/backend
-
-            # `npm ci` wipes node_modules, which takes the generated client in
-            # node_modules/.prisma/client with it, and --omit=dev then drops the
-            # prisma CLI itself. So regenerate against the schema shipped in
-            # dist/, and pin the CLI to the exact version in the lockfile — a
-            # bare `npx prisma` would pull the latest major and generate a client
-            # mismatched with the installed @prisma/client.
-            PRISMA_VERSION="$(node -p "require('./package-lock.json').packages['node_modules/prisma'].version")"
-            npx --yes "prisma@${PRISMA_VERSION}" generate --schema=dist/prisma/schema.prisma
-            npx --yes "prisma@${PRISMA_VERSION}" migrate deploy --schema=dist/prisma/schema.prisma
-
-            pm2 restart volthub-be --update-env
-            pm2 save
-          REMOTE
-
-      - name: Clean up SSH key
-        if: always()
-        run: rm -f ~/.ssh/deploy_key ~/.ssh/config
+          cd /srv/volthub
+          docker compose up -d
+          cd /srv/volthub/backend
+          npm ci --omit=dev --prefix /srv/volthub/backend
+          # `npm ci` wipes node_modules, which takes the generated client in
+          # node_modules/.prisma/client with it, and --omit=dev then drops the
+          # prisma CLI itself. So regenerate against the schema shipped in
+          # dist/, and pin the CLI to the exact version in the lockfile — a
+          # bare `npx prisma` would pull the latest major and generate a client
+          # mismatched with the installed @prisma/client.
+          PRISMA_VERSION="$(node -p "require('./package-lock.json').packages['node_modules/prisma'].version")"
+          npx --yes "prisma@${PRISMA_VERSION}" generate --schema=dist/prisma/schema.prisma
+          npx --yes "prisma@${PRISMA_VERSION}" migrate deploy --schema=dist/prisma/schema.prisma
+          pm2 restart volthub-be --update-env
+          pm2 save
