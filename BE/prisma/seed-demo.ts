@@ -26,7 +26,7 @@ import {
   ReportStatus,
   UserRole,
 } from '@prisma/client';
-import bcrypt from 'bcryptjs';
+import { hashPassword } from '../src/utils/password';
 
 const prisma = new PrismaClient();
 
@@ -79,7 +79,7 @@ async function resolveUsers() {
   let admin = await prisma.user.findFirst({ where: { role: { in: [UserRole.ADMIN, UserRole.SUPERADMIN] } } });
 
   if (!petugas || !admin) {
-    const password = await bcrypt.hash('password123', 10);
+    const password = await hashPassword('password123');
     if (!admin) {
       admin = await prisma.user.upsert({
         where: { email: 'demo.admin@voltreport.com' },

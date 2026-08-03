@@ -1,5 +1,5 @@
 import { Response } from 'express';
-import bcrypt from 'bcryptjs';
+import { hashPassword } from '../utils/password';
 import prisma from '../config/database';
 import { AuthRequest } from '../middlewares/auth';
 import { successResponse, errorResponse, validationErrorResponse } from '../utils/response';
@@ -28,8 +28,8 @@ const optionalName = z.preprocess(emptyToUndefined, z.string().trim().min(1).max
 
 const createUserSchema = z.object({
   email: z.string().email('Invalid email format'),
-  // Cap at 72 bytes: bcrypt silently ignores anything past 72, so a longer value
-  // gives a false sense of strength and needlessly burns hash CPU.
+  // Argon2id imposes no length limit; the 72-character cap is kept as a policy
+  // bound shared with the FE and the change-password endpoint.
   password: z
     .string()
     .min(6, 'Password must be at least 6 characters')
@@ -348,7 +348,7 @@ export const createUser = async (req: AuthRequest, res: Response): Promise<void>
       return;
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPassword = await hashPassword(password);
 
     // Atomic: name resolution (find-or-create RTUPP/Team), the user row, and its
     // audit record all commit together — no orphan RTUPP/Team if creation fails.
@@ -826,7 +826,7 @@ export const resetPassword = async (req: AuthRequest, res: Response): Promise<vo
       return;
     }
 
-    const hashedPassword = await bcrypt.hash(validation.data.password, 10);
+    const hashedPassword = await hashPassword(validation.data.password);
 
     await prisma.$transaction(async (tx) => {
       await tx.user.update({

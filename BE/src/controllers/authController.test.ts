@@ -6,23 +6,28 @@ import { mockResponse } from '../__tests__/helpers/http';
 vi.mock('../config/database');
 // Audit writes hit the DB — stub them out for unit tests.
 vi.mock('../utils/audit', () => ({ recordAudit: vi.fn().mockResolvedValue(undefined) }));
-// Control password comparison deterministically.
-vi.mock('bcryptjs', () => ({
-  default: {
-    compare: vi.fn(),
-    hash: vi.fn().mockResolvedValue('hashed'),
-  },
+// Control password verification deterministically (real Argon2id hashing is
+// intentionally slow and has no place in a unit test).
+vi.mock('../utils/password', () => ({
+  verifyPassword: vi.fn(),
+  hashPassword: vi.fn().mockResolvedValue('argon2-hash'),
+  isLegacyHash: vi.fn().mockReturnValue(false),
 }));
 
 import prisma, { resetPrismaMock } from '../config/database';
-import bcrypt from 'bcryptjs';
+import { verifyPassword, hashPassword } from '../utils/password';
 import { login, refreshToken, logout, logoutAll } from './authController';
 import { generateRefreshToken } from '../utils/jwt';
 import { _resetLockoutStore } from '../services/loginLockout';
 import type { AuthRequest } from '../middlewares/auth';
 
 const anyPrisma = prisma as any;
-const anyBcrypt = bcrypt as any;
+const mockVerify = verifyPassword as unknown as ReturnType<typeof vi.fn>;
+const mockHash = hashPassword as unknown as ReturnType<typeof vi.fn>;
+
+/** Stub the password check: `valid` decides the outcome, `needsRehash` the upgrade path. */
+const passwordCheck = (valid: boolean, needsRehash = false) =>
+  mockVerify.mockResolvedValue({ valid, needsRehash });
 
 const baseUser = {
   id: 'user-1',
@@ -46,8 +51,8 @@ beforeEach(() => {
 
 describe('login', () => {
   it('succeeds with valid credentials and returns tokens', async () => {
-    anyPrisma.user.findUnique.mockResolvedValue(baseUser);
-    anyBcrypt.compare.mockResolvedValue(true);
+    anyPrisma.user.findFirst.mockResolvedValue(baseUser);
+    passwordCheck(true);
 
     const req = { body: { email: baseUser.email, password: 'secret' } } as Request;
     const res = mockResponse();
@@ -61,6 +66,44 @@ describe('login', () => {
     expect(body.data.user.email).toBe(baseUser.email);
   });
 
+  it('re-hashes a legacy bcrypt password to Argon2id on successful login', async () => {
+    anyPrisma.user.findFirst.mockResolvedValue({ ...baseUser, password: '$2a$10$legacy' });
+    passwordCheck(true, true);
+
+    const req = { body: { email: baseUser.email, password: 'secret' } } as Request;
+    const res = mockResponse();
+    await login(req, res);
+
+    expect(res._status).toBe(200);
+    expect(mockHash).toHaveBeenCalledWith('secret');
+    expect(anyPrisma.user.update).toHaveBeenCalledWith({
+      where: { id: baseUser.id },
+      data: { password: 'argon2-hash' },
+    });
+  });
+
+  it('does not re-hash when the stored hash is already current', async () => {
+    anyPrisma.user.findFirst.mockResolvedValue(baseUser);
+    passwordCheck(true, false);
+
+    const res = mockResponse();
+    await login({ body: { email: baseUser.email, password: 'secret' } } as Request, res);
+
+    expect(res._status).toBe(200);
+    expect(anyPrisma.user.update).not.toHaveBeenCalled();
+  });
+
+  it('still logs the user in when the transparent re-hash write fails', async () => {
+    anyPrisma.user.findFirst.mockResolvedValue({ ...baseUser, password: '$2a$10$legacy' });
+    passwordCheck(true, true);
+    anyPrisma.user.update.mockRejectedValue(new Error('db down'));
+
+    const res = mockResponse();
+    await login({ body: { email: baseUser.email, password: 'secret' } } as Request, res);
+
+    expect(res._status).toBe(200);
+  });
+
   it('fails (422) on invalid email format', async () => {
     const req = { body: { email: 'not-an-email', password: 'x' } } as Request;
     const res = mockResponse();
@@ -69,7 +112,7 @@ describe('login', () => {
   });
 
   it('fails (401) when the user does not exist', async () => {
-    anyPrisma.user.findUnique.mockResolvedValue(null);
+    anyPrisma.user.findFirst.mockResolvedValue(null);
     const req = { body: { email: 'ghost@pln.id', password: 'x' } } as Request;
     const res = mockResponse();
     await login(req, res);
@@ -77,8 +120,8 @@ describe('login', () => {
   });
 
   it('fails (401) on wrong password', async () => {
-    anyPrisma.user.findUnique.mockResolvedValue(baseUser);
-    anyBcrypt.compare.mockResolvedValue(false);
+    anyPrisma.user.findFirst.mockResolvedValue(baseUser);
+    passwordCheck(false);
     const req = { body: { email: baseUser.email, password: 'wrong' } } as Request;
     const res = mockResponse();
     await login(req, res);
@@ -86,7 +129,7 @@ describe('login', () => {
   });
 
   it('fails (403) when the account is deactivated', async () => {
-    anyPrisma.user.findUnique.mockResolvedValue({ ...baseUser, isActive: false });
+    anyPrisma.user.findFirst.mockResolvedValue({ ...baseUser, isActive: false });
     const req = { body: { email: baseUser.email, password: 'secret' } } as Request;
     const res = mockResponse();
     await login(req, res);
@@ -94,15 +137,15 @@ describe('login', () => {
   });
 
   it('locks the account (429) after 5 failed password attempts', async () => {
-    anyPrisma.user.findUnique.mockResolvedValue(baseUser);
-    anyBcrypt.compare.mockResolvedValue(false);
+    anyPrisma.user.findFirst.mockResolvedValue(baseUser);
+    passwordCheck(false);
 
     // First 5 attempts return 401 (the 5th records the lock).
     for (let i = 0; i < 5; i++) {
       const res = mockResponse();
       await login({ body: { email: baseUser.email, password: 'x' } } as Request, res);
     }
-    // 6th attempt is blocked early with 429 (no further bcrypt/DB work).
+    // 6th attempt is blocked early with 429 (no further hashing/DB work).
     const res = mockResponse();
     await login({ body: { email: baseUser.email, password: 'x' } } as Request, res);
     expect(res._status).toBe(429);
@@ -110,20 +153,20 @@ describe('login', () => {
   });
 
   it('a successful login clears the failure counter', async () => {
-    anyPrisma.user.findUnique.mockResolvedValue(baseUser);
+    anyPrisma.user.findFirst.mockResolvedValue(baseUser);
 
     // 3 failures, then a success.
-    anyBcrypt.compare.mockResolvedValue(false);
+    passwordCheck(false);
     for (let i = 0; i < 3; i++) {
       await login({ body: { email: baseUser.email, password: 'x' } } as Request, mockResponse());
     }
-    anyBcrypt.compare.mockResolvedValue(true);
+    passwordCheck(true);
     const ok = mockResponse();
     await login({ body: { email: baseUser.email, password: 'correct' } } as Request, ok);
     expect(ok._status).toBe(200);
 
     // Counter reset: 2 more failures must NOT lock (would need 5 fresh ones).
-    anyBcrypt.compare.mockResolvedValue(false);
+    passwordCheck(false);
     let last = mockResponse();
     for (let i = 0; i < 2; i++) {
       last = mockResponse();

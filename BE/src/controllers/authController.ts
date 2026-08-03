@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import path from 'path';
 import fs from 'fs';
-import bcrypt from 'bcryptjs';
+import { hashPassword, verifyPassword } from '../utils/password';
 import prisma from '../config/database';
 import { successResponse, errorResponse, validationErrorResponse } from '../utils/response';
 import { AuthRequest } from '../middlewares/auth';
@@ -44,7 +44,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     const { email, password } = validation.data;
 
     // Brute-force lockout: refuse early if this account is currently locked
-    // (5 failed attempts -> 15 min lock). Checked before hitting the DB/bcrypt.
+    // (5 failed attempts -> 15 min lock). Checked before hitting the DB/hasher.
     const lock = getLockStatus(email);
     if (lock.locked) {
       const minutes = Math.ceil(lock.retryAfterMs / 60000);
@@ -84,7 +84,10 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    const isValidPassword = await bcrypt.compare(password, user.password);
+    const { valid: isValidPassword, needsRehash } = await verifyPassword(
+      user.password,
+      password
+    );
 
     if (!isValidPassword) {
       const result = recordFailedAttempt(email);
@@ -117,6 +120,22 @@ export const login = async (req: Request, res: Response): Promise<void> => {
 
     // Successful password check — clear any accumulated failure counter.
     clearAttempts(email);
+
+    // Transparent hash upgrade: this account still stores a legacy bcrypt hash
+    // (or Argon2id with stale parameters). We have the verified plaintext right
+    // here, so re-hash and persist it — the user is migrated to Argon2id without
+    // a password reset. Best-effort: a failure here must not block a valid
+    // login, the old hash simply stays and we retry on the next one.
+    if (needsRehash) {
+      try {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { password: await hashPassword(password) },
+        });
+      } catch (rehashError) {
+        console.error('Password hash upgrade failed for user', user.id, rehashError);
+      }
+    }
 
     // Open a new server-side session (family) and mint the token pair. The
     // refresh token is now revocable + rotated on use.
@@ -477,8 +496,9 @@ export const changePassword = async (req: AuthRequest, res: Response): Promise<v
       return;
     }
 
-    // bcrypt truncates beyond 72 bytes — reject longer input rather than hash a
-    // silently-truncated password (avoids a false sense of strength).
+    // Argon2id has no input-length limit, but the 72-character cap is kept as a
+    // deliberate policy bound (mirrored by the FE and createUser) so the field
+    // stays consistent across the app.
     if (newPassword.length > 72) {
       validationErrorResponse(res, { newPassword: 'New password must be at most 72 characters' });
       return;
@@ -493,14 +513,16 @@ export const changePassword = async (req: AuthRequest, res: Response): Promise<v
       return;
     }
 
-    const isValidPassword = await bcrypt.compare(currentPassword, user.password);
+    // Accepts a legacy bcrypt hash for the CURRENT password; the new one below
+    // is always written as Argon2id, so this path upgrades the row too.
+    const { valid: isValidPassword } = await verifyPassword(user.password, currentPassword);
 
     if (!isValidPassword) {
       errorResponse(res, 'Current password is incorrect', 400);
       return;
     }
 
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    const hashedPassword = await hashPassword(newPassword);
 
     // Atomic: the password update and its audit record commit together.
     await prisma.$transaction(async (tx) => {

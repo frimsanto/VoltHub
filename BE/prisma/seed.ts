@@ -1,5 +1,5 @@
 import { PrismaClient, UserRole } from '@prisma/client';
-import bcrypt from 'bcryptjs';
+import { hashPassword } from '../src/utils/password';
 import { seedGisE2E } from './seed-gis-e2e';
 
 const prisma = new PrismaClient();
@@ -36,7 +36,7 @@ async function main() {
   console.log('✅ Team created');
 
   // Hash password (same for all users)
-  const password = await bcrypt.hash('password123', 10);
+  const password = await hashPassword('password123');
 
   // Create Super Admin
   const superadmin = await prisma.user.upsert({

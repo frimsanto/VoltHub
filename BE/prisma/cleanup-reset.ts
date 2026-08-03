@@ -19,7 +19,7 @@
  * Jalankan:  CONFIRM=YES npx tsx prisma/cleanup-reset.ts
  */
 import { PrismaClient, UserRole } from '@prisma/client';
-import bcrypt from 'bcryptjs';
+import { hashPassword } from '../src/utils/password';
 
 const prisma = new PrismaClient();
 const PASSWORD = 'Volthub123!';
@@ -76,7 +76,7 @@ async function main() {
       "ENUM('MASTER','MANAGER','SUPERADMIN','ADMIN','ADMIN_RTUPP','PETUGAS') NULL DEFAULT 'PETUGAS'"
   );
 
-  const hash = bcrypt.hashSync(PASSWORD, bcrypt.genSaltSync(10));
+  const hash = await hashPassword(PASSWORD);
 
   // ── TRANSAKSI TUNGGAL (all-or-nothing) ──────────────────────────────────
   // Semua delete + user reset + teams + create + cek drift KEEP di dalam SATU

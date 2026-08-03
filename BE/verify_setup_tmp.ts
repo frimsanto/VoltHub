@@ -1,5 +1,5 @@
 import prisma from './src/config/database';
-import bcrypt from 'bcryptjs';
+import { hashPassword } from './src/utils/password';
 
 async function main() {
   const rtupp2 = await prisma.rTUPP.findFirst({ where: { code: 'RTUPP-2' } });
@@ -7,7 +7,7 @@ async function main() {
   const team = await prisma.team.findFirst({ where: { rtuppId: rtupp2.id } });
   if (!team) throw new Error('no team in RTUPP-2');
 
-  const hash = bcrypt.hashSync('VerifyTemp123!', 10);
+  const hash = await hashPassword('VerifyTemp123!');
   const admin = await prisma.user.upsert({
     where: { email: 'zz-verify-admin@voltreport.local' },
     update: { password: hash, isActive: true },

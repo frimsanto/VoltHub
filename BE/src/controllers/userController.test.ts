@@ -4,8 +4,11 @@ import { mockResponse } from '../__tests__/helpers/http';
 // In-memory Prisma mock + stubbed audit (these hit the DB in real life).
 vi.mock('../config/database');
 vi.mock('../utils/audit', () => ({ recordAudit: vi.fn().mockResolvedValue(undefined) }));
-vi.mock('bcryptjs', () => ({
-  default: { hash: vi.fn().mockResolvedValue('hashed'), compare: vi.fn() },
+// Real Argon2id hashing is intentionally slow — stub it out for unit tests.
+vi.mock('../utils/password', () => ({
+  hashPassword: vi.fn().mockResolvedValue('argon2-hash'),
+  verifyPassword: vi.fn(),
+  isLegacyHash: vi.fn().mockReturnValue(false),
 }));
 
 import prisma, { resetPrismaMock } from '../config/database';

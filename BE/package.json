@@ -46,6 +46,7 @@
     "@prisma/client": "^5.10.0",
     "@sentry/node": "^8.55.2",
     "archiver": "^6.0.2",
+    "argon2": "^0.45.1",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",

@@ -16,7 +16,7 @@
  * Run:  npm run reset:roles
  */
 import { PrismaClient, UserRole } from '@prisma/client';
-import bcrypt from 'bcryptjs';
+import { hashPassword } from '../src/utils/password';
 import { seedGisE2E } from './seed-gis-e2e';
 
 const prisma = new PrismaClient();
@@ -32,7 +32,7 @@ const ACCOUNTS: { email: string; name: string; role: UserRole; scoped: boolean }
 ];
 
 async function main() {
-  const passwordHash = bcrypt.hashSync(PASSWORD, bcrypt.genSaltSync(10));
+  const passwordHash = await hashPassword(PASSWORD);
 
   // 0) Ensure the DB role enum matches schema.prisma. Older dev DBs predate the
   // 4-role migration and lack MASTER/MANAGER, which makes a MANAGER account
